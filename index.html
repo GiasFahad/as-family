@@ -33,12 +33,14 @@
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  createUserWithEmailAndPassword, sendPasswordResetEmail,
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, getDoc, getDocs, serverTimestamp
+  getFirestore, collection, doc, onSnapshot, addDoc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Firebase project: as-family-business (Spark/free plan — no Storage used)
@@ -61,7 +63,7 @@ const STR = {
   en: {
     appName: "A&S Family Business", brand: "By FaBi",
     dashboard: "Dashboard", adminPanel: "Admin Panel", shopHouse: "Shop & House", events: "Events", reports: "Reports",
-    admin_r: "Admin", manager_r: "Manager", staff_r: "Staff",
+    admin_r: "Admin", user_r: "User",
     addUnit: "Add Unit", editUnit: "Edit Unit", unitName: "Unit name",
     addSubUnit: "Add Sub Unit", editSubUnit: "Edit Sub Unit", subUnitName: "Sub unit name",
     billingType: "Billing Type", hourly: "Hourly Rent", daily: "Daily Rent", monthly: "Monthly Rent", perEvent: "Per Event Rent",
@@ -70,11 +72,26 @@ const STR = {
     comingSoon: "This section is coming in the next build phase.",
     loginError: "Login failed. Check your email and password.",
     units: "Units",
+    accountDisabled: "Your account has been deactivated. Contact the Admin.",
+    settings: "Settings", language: "Language", changePassword: "Change Password",
+    currentPassword: "Current Password", newPassword: "New Password", confirmPassword: "Confirm New Password",
+    passwordMismatch: "New password and confirm password don't match.",
+    passwordChanged: "Password changed successfully.",
+    passwordError: "Couldn't change password. Check your current password.",
+    dateDisplay: "Date Bar Display",
+    showWeekday: "Weekday", showWeek: "Week Number", showGregorian: "Gregorian Date",
+    showBangla: "Bangla Date", showHijri: "Hijri Date",
+    userManagement: "User Management", addUser: "Add User", editUser: "Edit User",
+    name: "Name", isAdminUser: "Make this user an Admin", active: "Active", inactive: "Inactive",
+    permissions: "Permissions (per Sub Unit)", noAccess: "No Access", viewOnly: "View",
+    dataAdd: "Data Add", dataEdit: "Data Edit", sendResetEmail: "Send Password Reset Email",
+    resetEmailSent: "Password reset email sent.", userCreateError: "Couldn't create user. Check the email/password.",
+    deactivate: "Deactivate", activate: "Activate",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
     dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", shopHouse: "দোকান ও বাসা", events: "ইভেন্ট", reports: "রিপোর্ট",
-    admin_r: "অ্যাডমিন", manager_r: "ম্যানেজার", staff_r: "স্টাফ",
+    admin_r: "অ্যাডমিন", user_r: "ইউজার",
     addUnit: "ইউনিট যোগ করুন", editUnit: "ইউনিট এডিট করুন", unitName: "ইউনিটের নাম",
     addSubUnit: "সাব ইউনিট যোগ করুন", editSubUnit: "সাব ইউনিট এডিট করুন", subUnitName: "সাব ইউনিটের নাম",
     billingType: "বিলিং ধরন", hourly: "ঘণ্টাভিত্তিক ভাড়া", daily: "দৈনিক ভাড়া", monthly: "মাসিক ভাড়া", perEvent: "প্রতি ইভেন্ট ভাড়া",
@@ -83,6 +100,21 @@ const STR = {
     comingSoon: "এই অংশ পরের ধাপে যোগ হবে।",
     loginError: "লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
     units: "ইউনিট",
+    accountDisabled: "তোমার অ্যাকাউন্ট নিষ্ক্রিয় করা হয়েছে। Admin-এর সাথে যোগাযোগ করো।",
+    settings: "সেটিংস", language: "ভাষা", changePassword: "পাসওয়ার্ড পরিবর্তন",
+    currentPassword: "বর্তমান পাসওয়ার্ড", newPassword: "নতুন পাসওয়ার্ড", confirmPassword: "নতুন পাসওয়ার্ড আবার লিখুন",
+    passwordMismatch: "নতুন পাসওয়ার্ড দুটো মিলছে না।",
+    passwordChanged: "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।",
+    passwordError: "পাসওয়ার্ড পরিবর্তন করা যায়নি। বর্তমান পাসওয়ার্ড চেক করো।",
+    dateDisplay: "ডেট বার ডিসপ্লে",
+    showWeekday: "সপ্তাহের দিন", showWeek: "সপ্তাহ নম্বর", showGregorian: "ইংরেজি তারিখ",
+    showBangla: "বাংলা তারিখ", showHijri: "হিজরি তারিখ",
+    userManagement: "ইউজার ম্যানেজমেন্ট", addUser: "ইউজার যোগ করুন", editUser: "ইউজার এডিট করুন",
+    name: "নাম", isAdminUser: "এই ইউজারকে Admin বানাও", active: "সক্রিয়", inactive: "নিষ্ক্রিয়",
+    permissions: "পারমিশন (প্রতি সাব ইউনিট)", noAccess: "কোনো অ্যাক্সেস নেই", viewOnly: "দেখা",
+    dataAdd: "ডেটা যোগ", dataEdit: "ডেটা এডিট", sendResetEmail: "পাসওয়ার্ড রিসেট ইমেইল পাঠাও",
+    resetEmailSent: "পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে।", userCreateError: "ইউজার তৈরি করা যায়নি। ইমেইল/পাসওয়ার্ড চেক করো।",
+    deactivate: "নিষ্ক্রিয় করো", activate: "সক্রিয় করো",
   },
 };
 
@@ -100,6 +132,79 @@ const root = document.getElementById("root");
 const t = () => STR[lang];
 const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])));
 
+// ---------------------------------------------------------------------------
+// Local display settings (per-device): language handled via `lang`, plus date-bar toggles
+// ---------------------------------------------------------------------------
+const SETTINGS_KEY = "asfb_settings";
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    const s = raw ? JSON.parse(raw) : {};
+    return { showWeekday: true, showWeek: true, showGregorian: true, showBangla: true, showHijri: true, ...s };
+  } catch { return { showWeekday: true, showWeek: true, showGregorian: true, showBangla: true, showHijri: true }; }
+}
+function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+let dispSettings = loadSettings();
+
+// ---------------------------------------------------------------------------
+// Date bar: weekday │ WK-N │ Gregorian │ Bangla │ Hijri
+// ---------------------------------------------------------------------------
+const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const GREG_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const BANGLA_MONTHS = ["Boishakh","Jestha","Ashar","Shrabon","Bhadro","Ashwin","Kartik","Ogrohayon","Poush","Magh","Falgun","Choitro"];
+const HIJRI_MONTHS = ["Muharram","Safar","Rabiul Awal","Rabius Sani","Jamadal Awal","Jamadas Sani","Rajab","Shaban","Ramadan","Shawwal","Zilqad","Zilhajj"];
+
+function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function isGregLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+
+function weekNumberSunday(date) {
+  const d = atMidnight(date);
+  const start = new Date(d.getFullYear(), 0, 1);
+  const diffDays = Math.round((d - start) / 86400000);
+  return Math.ceil((diffDays + start.getDay() + 1) / 7);
+}
+
+function getBanglaDate(date) {
+  const d = atMidnight(date);
+  const y = d.getFullYear();
+  const newYearThisYear = new Date(y, 3, 14);
+  let bYear, startDate;
+  if (d >= newYearThisYear) { bYear = y - 593; startDate = newYearThisYear; }
+  else { bYear = y - 594; startDate = new Date(y - 1, 3, 14); }
+  const dayOfYear = Math.round((d - startDate) / 86400000) + 1;
+  const falgunDays = isGregLeap(startDate.getFullYear() + 1) ? 30 : 29;
+  const monthLens = [31,31,31,31,31,31,30,30,30,30, falgunDays, 30];
+  let remaining = dayOfYear, mIdx = 0;
+  for (; mIdx < 12; mIdx++) {
+    if (remaining <= monthLens[mIdx]) break;
+    remaining -= monthLens[mIdx];
+  }
+  return { day: remaining, month: BANGLA_MONTHS[mIdx], year: bYear };
+}
+
+function getHijriDate(date) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", { day: "numeric", month: "numeric", year: "numeric" });
+    const parts = fmt.formatToParts(date);
+    const day = +parts.find(p => p.type === "day").value;
+    const month = +parts.find(p => p.type === "month").value;
+    const year = +parts.find(p => p.type === "year").value;
+    return { day, month: HIJRI_MONTHS[month - 1], year };
+  } catch { return null; }
+}
+
+function dateBarHtml() {
+  const now = new Date();
+  const parts = [];
+  if (dispSettings.showWeekday) parts.push(WEEKDAYS[now.getDay()]);
+  if (dispSettings.showWeek) parts.push(`WK-${weekNumberSunday(now)}`);
+  if (dispSettings.showGregorian) parts.push(`${String(now.getDate()).padStart(2,"0")}-${GREG_MONTHS[now.getMonth()]}-${now.getFullYear()}`);
+  if (dispSettings.showBangla) { const b = getBanglaDate(now); parts.push(`${b.day}-${b.month}-${b.year}`); }
+  if (dispSettings.showHijri) { const h = getHijriDate(now); if (h) parts.push(`${h.day}-${h.month}-${h.year}`); }
+  if (parts.length === 0) return "";
+  return `<div class="mx-auto max-w-5xl px-4 pb-2 text-xs" style="color:#8a8578">${parts.map(esc).join(" &nbsp;│&nbsp; ")}</div>`;
+}
+
 const icons = {
   building: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1"/></svg>`,
   dashboard: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
@@ -113,6 +218,8 @@ const icons = {
   shield: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B08968" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
   gear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   pencil: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  sliders: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`,
+  users: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
 };
 
 function render() {
@@ -124,6 +231,7 @@ function render() {
   }
   if (!currentUser) { renderLogin(); return; }
   if (!profile) { renderNoProfile(); return; }
+  if (profile.active === false) { renderDisabled(); return; }
   renderApp();
 }
 
@@ -178,6 +286,18 @@ function renderNoProfile() {
   document.getElementById("logoutBtn2").addEventListener("click", () => signOut(auth));
 }
 
+function renderDisabled() {
+  root.innerHTML = `
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="card p-6 max-w-sm text-center">
+      <div class="flex justify-center mb-3">${icons.shield}</div>
+      <p class="text-sm" style="color:#3A3A34">${esc(t().accountDisabled)}</p>
+      <button id="logoutBtn3" class="btn btn-outline mt-4">${icons.logout} Log out</button>
+    </div>
+  </div>`;
+  document.getElementById("logoutBtn3").addEventListener("click", () => signOut(auth));
+}
+
 const TABS = [
   { key: "dashboard", icon: "dashboard" },
   { key: "shopHouse", icon: "store" },
@@ -188,7 +308,7 @@ const TABS = [
 
 function renderApp() {
   const isAdmin = profile.role === "admin";
-  const roleLabel = profile.role === "admin" ? t().admin_r : profile.role === "manager" ? t().manager_r : t().staff_r;
+  const roleLabel = isAdmin ? t().admin_r : t().user_r;
   const visibleTabs = TABS.filter(tb => !tb.adminOnly || isAdmin);
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
 
@@ -202,10 +322,11 @@ function renderApp() {
         </div>
         <div class="flex items-center gap-2">
           <div class="flex items-center gap-1 border rounded-lg px-2 py-1 text-xs bg-white" style="border-color:#D8D2C2">${esc(roleLabel)}</div>
-          <button id="langBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.globe} ${lang === "en" ? "বাংলা" : "English"}</button>
+          <button id="settingsBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.sliders}</button>
           <button id="logoutBtn" class="btn btn-outline" style="padding:6px 10px;color:#9B2C2C">${icons.logout}</button>
         </div>
       </div>
+      <div id="dateBar">${dateBarHtml()}</div>
       <div class="mx-auto max-w-5xl flex gap-1 px-4 pb-3 overflow-x-auto" style="overflow-y:visible">
         ${visibleTabs.map(tb => `
           <button data-tab="${tb.key}" class="tab-btn ${tab === tb.key ? "active" : ""}">
@@ -216,7 +337,7 @@ function renderApp() {
     <div class="mx-auto max-w-5xl px-4 py-6" id="tabContent"></div>
   </div>`;
 
-  document.getElementById("langBtn").addEventListener("click", () => { lang = lang === "en" ? "bn" : "en"; render(); });
+  document.getElementById("settingsBtn").addEventListener("click", openSettingsModal);
   document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
   document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
     tab = b.getAttribute("data-tab"); renderTabContent(isAdmin);
@@ -245,6 +366,13 @@ function renderTabContent(isAdmin) {
 const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
 function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge-green"; }
 
+let allUsers = [];
+let unsubUsers = null;
+const PERM_LEVELS = ["none", "view", "add", "edit"];
+function permLabel(level) {
+  return level === "view" ? t().viewOnly : level === "add" ? t().dataAdd : level === "edit" ? t().dataEdit : t().noAccess;
+}
+
 function renderAdminPanel(el) {
   el.innerHTML = `
     <div class="flex items-center justify-between mb-4">
@@ -254,9 +382,52 @@ function renderAdminPanel(el) {
       <button id="addUnitBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUnit}</button>
     </div>
     <p class="text-xs mb-4" style="color:#8a8578">${esc(t().units)}: ${units.length}</p>
-    <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2"></div>`;
+    <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">
+        ${icons.users}<h2 class="text-lg font-semibold">${t().userManagement}</h2>
+      </div>
+      <button id="addUserBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUser}</button>
+    </div>
+    <div id="usersList" class="flex flex-col gap-2"></div>`;
   document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
+  document.getElementById("addUserBtn").addEventListener("click", openAddUserModal);
   paintAdminGrid();
+  paintUsersList();
+  startUsersListener();
+}
+
+function paintUsersList() {
+  const listEl = document.getElementById("usersList");
+  if (!listEl) return;
+  listEl.innerHTML = allUsers.map(u => `
+    <div class="card p-3 flex items-center justify-between">
+      <div>
+        <div class="text-sm font-medium" style="color:#1B4332">${esc(u.name || u.email)} ${u.role === "admin" ? `<span class="badge badge-gold">${t().admin_r}</span>` : ""}</div>
+        <div class="text-xs" style="color:#8a8578">${esc(u.email || "")}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge ${u.active === false ? "badge-gray" : "badge-green"}">${u.active === false ? t().inactive : t().active}</span>
+        <button data-edituser="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.pencil}${t().edit}</button>
+        <button data-toggleactive="${u.id}" class="btn btn-outline" style="padding:4px 8px;font-size:12px">${u.active === false ? t().activate : t().deactivate}</button>
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`;
+  listEl.querySelectorAll("[data-edituser]").forEach(b => b.addEventListener("click", () => openEditUserModal(allUsers.find(u => u.id === b.getAttribute("data-edituser")))));
+  listEl.querySelectorAll("[data-toggleactive]").forEach(b => b.addEventListener("click", async () => {
+    const u = allUsers.find(x => x.id === b.getAttribute("data-toggleactive"));
+    if (!u) return;
+    const newActive = u.active === false ? true : false;
+    await updateDoc(doc(db, "users", u.id), { active: newActive });
+  }));
+}
+
+function startUsersListener() {
+  if (unsubUsers) return;
+  unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "adminPanel") paintUsersList();
+  });
 }
 
 function paintAdminGrid() {
@@ -303,6 +474,203 @@ function openModal(title, bodyHtml, onMount) {
   wrap.querySelector("#modalClose").addEventListener("click", () => wrap.remove());
   onMount(wrap);
   return wrap;
+}
+
+function openSettingsModal() {
+  const s = dispSettings;
+  openModal(t().settings, `
+    <div class="flex flex-col gap-6">
+      <div>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().language}</span>
+          <select id="langSelect" class="inp">
+            <option value="en" ${lang === "en" ? "selected" : ""}>English</option>
+            <option value="bn" ${lang === "bn" ? "selected" : ""}>বাংলা</option>
+          </select>
+        </label>
+      </div>
+
+      <div>
+        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().dateDisplay}</div>
+        <div class="flex flex-col gap-2">
+          ${[["showWeekday","showWeekday"],["showWeek","showWeek"],["showGregorian","showGregorian"],["showBangla","showBangla"],["showHijri","showHijri"]].map(([key,label]) => `
+            <label class="flex items-center justify-between text-sm rounded-lg px-3 py-2" style="background:#F7F5F0">
+              <span>${t()[label]}</span>
+              <input type="checkbox" data-dtoggle="${key}" ${s[key] ? "checked" : ""} />
+            </label>`).join("")}
+        </div>
+      </div>
+
+      <div>
+        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().changePassword}</div>
+        <div class="flex flex-col gap-3">
+          <input id="curPass" type="password" placeholder="${t().currentPassword}" class="inp" />
+          <input id="newPass" type="password" placeholder="${t().newPassword}" class="inp" />
+          <input id="newPass2" type="password" placeholder="${t().confirmPassword}" class="inp" />
+          <div id="passMsg" class="text-xs"></div>
+          <button id="changePassBtn" class="btn btn-outline">${t().changePassword}</button>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button id="closeBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#langSelect").addEventListener("change", (e) => { lang = e.target.value; wrap.remove(); render(); });
+    wrap.querySelectorAll("[data-dtoggle]").forEach(cb => cb.addEventListener("change", () => {
+      dispSettings[cb.getAttribute("data-dtoggle")] = cb.checked;
+      saveSettings(dispSettings);
+      const bar = document.getElementById("dateBar");
+      if (bar) bar.innerHTML = dateBarHtml();
+    }));
+    wrap.querySelector("#closeBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#changePassBtn").addEventListener("click", async () => {
+      const msg = wrap.querySelector("#passMsg");
+      const cur = wrap.querySelector("#curPass").value;
+      const n1 = wrap.querySelector("#newPass").value;
+      const n2 = wrap.querySelector("#newPass2").value;
+      if (n1 !== n2) { msg.style.color = "#9B2C2C"; msg.textContent = t().passwordMismatch; return; }
+      try {
+        const cred = EmailAuthProvider.credential(currentUser.email, cur);
+        await reauthenticateWithCredential(currentUser, cred);
+        await updatePassword(currentUser, n1);
+        msg.style.color = "#1B4332"; msg.textContent = t().passwordChanged;
+      } catch (e) {
+        msg.style.color = "#9B2C2C"; msg.textContent = t().passwordError;
+      }
+    });
+  });
+}
+
+function permMatrixHtml(existingPerms) {
+  const perms = existingPerms || {};
+  if (units.length === 0) return `<p class="text-xs" style="color:#8a8578">—</p>`;
+  return units.map(u => `
+    <div class="mb-2">
+      <div class="text-xs font-semibold mb-1" style="color:#1B4332">${esc(u.name)}</div>
+      <div class="flex flex-col gap-1">
+        ${subUnits.filter(s => s.unitId === u.id).map(s => `
+          <div class="flex items-center justify-between text-sm rounded-lg px-3 py-1.5" style="background:#F7F5F0">
+            <span>${esc(s.name)}</span>
+            <select data-permsub="${s.id}" class="inp" style="width:auto;padding:4px 8px;font-size:12px">
+              ${PERM_LEVELS.map(lv => `<option value="${lv}" ${((perms[s.id] || "none") === lv) ? "selected" : ""}>${permLabel(lv)}</option>`).join("")}
+            </select>
+          </div>`).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`}
+      </div>
+    </div>`).join("");
+}
+function readPermMatrix(wrap) {
+  const out = {};
+  wrap.querySelectorAll("[data-permsub]").forEach(sel => {
+    const lv = sel.value;
+    if (lv !== "none") out[sel.getAttribute("data-permsub")] = lv;
+  });
+  return out;
+}
+
+function openAddUserModal() {
+  openModal(t().addUser, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().name}</span>
+        <input id="uName" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().email}</span>
+        <input id="uEmail" type="email" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().password}</span>
+        <input id="uPassword" type="password" class="inp" />
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" id="uIsAdmin" />
+        <span>${t().isAdminUser}</span>
+      </label>
+      <div id="uPermsWrap">
+        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
+        <div id="uPerms">${permMatrixHtml({})}</div>
+      </div>
+      <div id="uErr" class="text-xs" style="color:#9B2C2C"></div>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => {
+      wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block";
+    });
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#uName").value.trim();
+      const email = wrap.querySelector("#uEmail").value.trim();
+      const password = wrap.querySelector("#uPassword").value;
+      const isAdminUser = wrap.querySelector("#uIsAdmin").checked;
+      const errBox = wrap.querySelector("#uErr");
+      if (!name || !email || password.length < 6) { errBox.textContent = t().userCreateError; return; }
+      const permissions = isAdminUser ? {} : readPermMatrix(wrap);
+      const secName = "secondary-" + Date.now();
+      try {
+        const secApp = initializeApp(firebaseConfig, secName);
+        const secAuth = getAuth(secApp);
+        const cred = await createUserWithEmailAndPassword(secAuth, email, password);
+        const newUid = cred.user.uid;
+        await signOut(secAuth);
+        await deleteApp(secApp);
+        await setDoc(doc(db, "users", newUid), {
+          name, email, role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp(),
+        });
+        wrap.remove();
+      } catch (e) {
+        errBox.textContent = t().userCreateError;
+      }
+    });
+  });
+}
+
+function openEditUserModal(user) {
+  if (!user) return;
+  const isAdminUser0 = user.role === "admin";
+  openModal(t().editUser, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().name}</span>
+        <input id="uName" class="inp" value="${esc(user.name || "")}" />
+      </label>
+      <p class="text-xs" style="color:#8a8578">${esc(user.email || "")}</p>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} />
+        <span>${t().isAdminUser}</span>
+      </label>
+      <div id="uPermsWrap" style="${isAdminUser0 ? "display:none" : ""}">
+        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
+        <div id="uPerms">${permMatrixHtml(user.permissions)}</div>
+      </div>
+      <button id="resetBtn" class="btn btn-outline">${t().sendResetEmail}</button>
+      <div id="uMsg" class="text-xs"></div>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => {
+      wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block";
+    });
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#resetBtn").addEventListener("click", async () => {
+      const msg = wrap.querySelector("#uMsg");
+      try { await sendPasswordResetEmail(auth, user.email); msg.style.color = "#1B4332"; msg.textContent = t().resetEmailSent; }
+      catch (e) { msg.style.color = "#9B2C2C"; msg.textContent = t().passwordError; }
+    });
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#uName").value.trim();
+      const isAdminUser = wrap.querySelector("#uIsAdmin").checked;
+      const permissions = isAdminUser ? {} : readPermMatrix(wrap);
+      if (!name) return;
+      await updateDoc(doc(db, "users", user.id), { name, role: isAdminUser ? "admin" : "user", permissions });
+      wrap.remove();
+    });
+  });
 }
 
 function openAddUnitModal() {
@@ -434,7 +802,8 @@ function startUnitsListeners(isAdmin) {
 function stopUnitsListeners() {
   if (unsubUnits) { unsubUnits(); unsubUnits = null; }
   if (unsubSubUnits) { unsubSubUnits(); unsubSubUnits = null; }
-  units = []; subUnits = [];
+  if (unsubUsers) { unsubUsers(); unsubUsers = null; }
+  units = []; subUnits = []; allUsers = [];
 }
 
 onAuthStateChanged(auth, async (u) => {
@@ -448,6 +817,11 @@ onAuthStateChanged(auth, async (u) => {
   render();
   if (profile) startUnitsListeners(profile.role === "admin");
 });
+
+setInterval(() => {
+  const bar = document.getElementById("dateBar");
+  if (bar) bar.innerHTML = dateBarHtml();
+}, 30000);
 </script>
 </body>
 </html>

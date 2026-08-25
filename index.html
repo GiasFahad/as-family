@@ -87,6 +87,9 @@ const STR = {
     dataAdd: "Data Add", dataEdit: "Data Edit", sendResetEmail: "Send Password Reset Email",
     resetEmailSent: "Password reset email sent.", userCreateError: "Couldn't create user. Check the email/password.",
     deactivate: "Deactivate", activate: "Activate",
+    hijriAdjust: "Hijri Date Adjustment", hijriAdjustHint: "Shift the Hijri date shown to everyone by a few days to match local moon-sighting announcements.", days: "days",
+    dashboardSummary: "Overview", upcomingEvent: "Upcoming Event", pendingEvents: "Pending Events",
+    shopUncollected: "Shop Rent Due", houseUncollected: "House Rent Due", none: "None",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
@@ -115,6 +118,9 @@ const STR = {
     dataAdd: "ডেটা যোগ", dataEdit: "ডেটা এডিট", sendResetEmail: "পাসওয়ার্ড রিসেট ইমেইল পাঠাও",
     resetEmailSent: "পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে।", userCreateError: "ইউজার তৈরি করা যায়নি। ইমেইল/পাসওয়ার্ড চেক করো।",
     deactivate: "নিষ্ক্রিয় করো", activate: "সক্রিয় করো",
+    hijriAdjust: "হিজরি তারিখ সমন্বয়", hijriAdjustHint: "সবার জন্য দেখানো হিজরি তারিখ কয়েক দিন এদিক-ওদিক করো, স্থানীয় চাঁদ দেখা ঘোষণার সাথে মেলাতে।", days: "দিন",
+    dashboardSummary: "সারসংক্ষেপ", upcomingEvent: "আসন্ন ইভেন্ট", pendingEvents: "পেন্ডিং ইভেন্ট",
+    shopUncollected: "দোকানের বাকি ভাড়া", houseUncollected: "বাসার বাকি ভাড়া", none: "নেই",
   },
 };
 
@@ -127,6 +133,8 @@ let profileChecked = false;
 let units = [];
 let subUnits = [];
 let unsubUnits = null, unsubSubUnits = null;
+let globalSettings = { hijriOffsetDays: 0 };
+let unsubGlobalSettings = null;
 
 const root = document.getElementById("root");
 const t = () => STR[lang];
@@ -184,8 +192,10 @@ function getBanglaDate(date) {
 
 function getHijriDate(date) {
   try {
+    const offset = globalSettings.hijriOffsetDays || 0;
+    const shifted = new Date(date.getTime() + offset * 86400000);
     const fmt = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", { day: "numeric", month: "numeric", year: "numeric" });
-    const parts = fmt.formatToParts(date);
+    const parts = fmt.formatToParts(shifted);
     const day = +parts.find(p => p.type === "day").value;
     const month = +parts.find(p => p.type === "month").value;
     const year = +parts.find(p => p.type === "year").value;
@@ -357,10 +367,94 @@ function renderTabContent(isAdmin) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const el = document.getElementById("tabContent");
   if (tab === "adminPanel" && isAdmin) { renderAdminPanel(el); return; }
-  if (tab === "dashboard") el.innerHTML = comingSoonHtml(t().dashboard);
+  if (tab === "dashboard") { renderDashboard(el); return; }
   if (tab === "shopHouse") el.innerHTML = comingSoonHtml(t().shopHouse);
   if (tab === "events") el.innerHTML = comingSoonHtml(t().events);
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard summary (live-wired; will populate once Shop&House/Events modules exist)
+// ---------------------------------------------------------------------------
+let dashEvents = [], dashTenants = [], dashRentPayments = [];
+let unsubDashEvents = null, unsubDashTenants = null, unsubDashRentPayments = null;
+
+function startDashboardListeners() {
+  if (unsubDashEvents) return;
+  unsubDashEvents = onSnapshot(collection(db, "events"), (snap) => {
+    dashEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "dashboard") paintDashboardCard();
+  });
+  unsubDashTenants = onSnapshot(collection(db, "tenants"), (snap) => {
+    dashTenants = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "dashboard") paintDashboardCard();
+  });
+  unsubDashRentPayments = onSnapshot(collection(db, "rentPayments"), (snap) => {
+    dashRentPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "dashboard") paintDashboardCard();
+  });
+}
+function stopDashboardListeners() {
+  if (unsubDashEvents) { unsubDashEvents(); unsubDashEvents = null; }
+  if (unsubDashTenants) { unsubDashTenants(); unsubDashTenants = null; }
+  if (unsubDashRentPayments) { unsubDashRentPayments(); unsubDashRentPayments = null; }
+  dashEvents = []; dashTenants = []; dashRentPayments = [];
+}
+
+function computeDashboardStats() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pending = dashEvents.filter(e => e.status === "pending");
+  const upcoming = pending.filter(e => e.eventDate >= todayStr).sort((a, b) => (a.eventDate > b.eventDate ? 1 : -1))[0];
+
+  const now = new Date();
+  const month = now.getMonth() + 1, year = now.getFullYear();
+  const paidTenantIds = new Set(dashRentPayments.filter(p => p.month === month && p.year === year).map(p => p.tenantId));
+
+  const subUnitById = Object.fromEntries(subUnits.map(s => [s.id, s]));
+  let shopDue = 0, houseDue = 0;
+  dashTenants.forEach(tn => {
+    if (tn.active === false) return;
+    if (paidTenantIds.has(tn.id)) return;
+    const su = subUnitById[tn.subUnitId];
+    const name = (su?.name || "").toLowerCase();
+    if (name.includes("shop")) shopDue++;
+    else if (name.includes("house")) houseDue++;
+  });
+
+  return { upcomingDate: upcoming ? upcoming.eventDate : null, pendingCount: pending.length, shopDue, houseDue };
+}
+
+function renderDashboard(el) {
+  el.innerHTML = `<div id="dashCard"></div><div class="mt-5">${comingSoonHtml(t().dashboard)}</div>`;
+  paintDashboardCard();
+}
+
+function paintDashboardCard() {
+  const box = document.getElementById("dashCard");
+  if (!box) return;
+  const s = computeDashboardStats();
+  box.innerHTML = `
+    <div class="card p-4">
+      <div class="text-sm font-semibold mb-3" style="color:#1B4332">${t().dashboardSummary}</div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="rounded-xl p-3" style="background:#F7F5F0">
+          <div class="text-xs" style="color:#8a8578">${t().upcomingEvent}</div>
+          <div class="text-base font-semibold" style="color:#1B4332">${s.upcomingDate ? esc(s.upcomingDate) : t().none}</div>
+        </div>
+        <div class="rounded-xl p-3" style="background:#F7F5F0">
+          <div class="text-xs" style="color:#8a8578">${t().pendingEvents}</div>
+          <div class="text-base font-semibold" style="color:#1B4332">${s.pendingCount}</div>
+        </div>
+        <div class="rounded-xl p-3" style="background:#F7F5F0">
+          <div class="text-xs" style="color:#8a8578">${t().shopUncollected}</div>
+          <div class="text-base font-semibold" style="color:#1B4332">${s.shopDue}</div>
+        </div>
+        <div class="rounded-xl p-3" style="background:#F7F5F0">
+          <div class="text-xs" style="color:#8a8578">${t().houseUncollected}</div>
+          <div class="text-base font-semibold" style="color:#1B4332">${s.houseDue}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
 const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
@@ -368,13 +462,19 @@ function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge
 
 let allUsers = [];
 let unsubUsers = null;
-const PERM_LEVELS = ["none", "view", "add", "edit"];
-function permLabel(level) {
-  return level === "view" ? t().viewOnly : level === "add" ? t().dataAdd : level === "edit" ? t().dataEdit : t().noAccess;
-}
 
 function renderAdminPanel(el) {
   el.innerHTML = `
+    <div class="card p-4 mb-6">
+      <div class="text-sm font-medium mb-2" style="color:#1B4332">${t().hijriAdjust}</div>
+      <div class="flex items-center gap-3">
+        <button id="hijriMinus" class="btn btn-outline" style="padding:4px 12px;font-size:16px">−</button>
+        <span id="hijriVal" class="text-sm font-semibold" style="min-width:60px;text-align:center">${globalSettings.hijriOffsetDays > 0 ? "+" : ""}${globalSettings.hijriOffsetDays} ${t().days}</span>
+        <button id="hijriPlus" class="btn btn-outline" style="padding:4px 12px;font-size:16px">+</button>
+      </div>
+      <p class="text-xs mt-2" style="color:#8a8578">${t().hijriAdjustHint}</p>
+    </div>
+
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">
         ${icons.gear}<h2 class="text-lg font-semibold">${t().adminPanel}</h2>
@@ -393,9 +493,17 @@ function renderAdminPanel(el) {
     <div id="usersList" class="flex flex-col gap-2"></div>`;
   document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
   document.getElementById("addUserBtn").addEventListener("click", openAddUserModal);
+  document.getElementById("hijriMinus").addEventListener("click", () => adjustHijriOffset(-1));
+  document.getElementById("hijriPlus").addEventListener("click", () => adjustHijriOffset(1));
   paintAdminGrid();
   paintUsersList();
   startUsersListener();
+}
+
+async function adjustHijriOffset(delta) {
+  const current = globalSettings.hijriOffsetDays || 0;
+  const next = Math.max(-3, Math.min(3, current + delta));
+  await setDoc(doc(db, "settings", "global"), { hijriOffsetDays: next }, { merge: true });
 }
 
 function paintUsersList() {
@@ -502,8 +610,11 @@ function openSettingsModal() {
       </div>
 
       <div>
-        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().changePassword}</div>
-        <div class="flex flex-col gap-3">
+        <button id="pwToggleRow" type="button" class="w-full flex items-center justify-between text-sm font-medium rounded-lg px-3 py-2" style="background:#F7F5F0;color:#6B6659">
+          <span>${t().changePassword}</span>
+          <span id="pwChevron">▾</span>
+        </button>
+        <div id="pwBody" class="flex flex-col gap-3 mt-3" style="display:none">
           <input id="curPass" type="password" placeholder="${t().currentPassword}" class="inp" />
           <input id="newPass" type="password" placeholder="${t().newPassword}" class="inp" />
           <input id="newPass2" type="password" placeholder="${t().confirmPassword}" class="inp" />
@@ -523,6 +634,13 @@ function openSettingsModal() {
       const bar = document.getElementById("dateBar");
       if (bar) bar.innerHTML = dateBarHtml();
     }));
+    wrap.querySelector("#pwToggleRow").addEventListener("click", () => {
+      const body = wrap.querySelector("#pwBody");
+      const chevron = wrap.querySelector("#pwChevron");
+      const open = body.style.display !== "none";
+      body.style.display = open ? "none" : "flex";
+      chevron.textContent = open ? "▾" : "▴";
+    });
     wrap.querySelector("#closeBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#changePassBtn").addEventListener("click", async () => {
       const msg = wrap.querySelector("#passMsg");
@@ -549,22 +667,31 @@ function permMatrixHtml(existingPerms) {
     <div class="mb-2">
       <div class="text-xs font-semibold mb-1" style="color:#1B4332">${esc(u.name)}</div>
       <div class="flex flex-col gap-1">
-        ${subUnits.filter(s => s.unitId === u.id).map(s => `
-          <div class="flex items-center justify-between text-sm rounded-lg px-3 py-1.5" style="background:#F7F5F0">
-            <span>${esc(s.name)}</span>
-            <select data-permsub="${s.id}" class="inp" style="width:auto;padding:4px 8px;font-size:12px">
-              ${PERM_LEVELS.map(lv => `<option value="${lv}" ${((perms[s.id] || "none") === lv) ? "selected" : ""}>${permLabel(lv)}</option>`).join("")}
-            </select>
-          </div>`).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`}
+        ${subUnits.filter(s => s.unitId === u.id).map(s => {
+          const p = perms[s.id] || {};
+          return `
+          <div class="flex items-center justify-between text-sm rounded-lg px-3 py-1.5 gap-2" style="background:#F7F5F0">
+            <span class="shrink-0">${esc(s.name)}</span>
+            <div class="flex items-center gap-3 text-xs">
+              <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="view" ${p.view ? "checked" : ""} />${t().viewOnly}</label>
+              <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="add" ${p.add ? "checked" : ""} />${t().dataAdd}</label>
+              <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="edit" ${p.edit ? "checked" : ""} />${t().dataEdit}</label>
+            </div>
+          </div>`;
+        }).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`}
       </div>
     </div>`).join("");
 }
 function readPermMatrix(wrap) {
   const out = {};
-  wrap.querySelectorAll("[data-permsub]").forEach(sel => {
-    const lv = sel.value;
-    if (lv !== "none") out[sel.getAttribute("data-permsub")] = lv;
+  wrap.querySelectorAll("[data-permsub]").forEach(cb => {
+    const subId = cb.getAttribute("data-permsub");
+    const flag = cb.getAttribute("data-permflag");
+    if (!out[subId]) out[subId] = { view: false, add: false, edit: false };
+    out[subId][flag] = cb.checked;
   });
+  // drop subunits with no flags checked at all (= No Access)
+  Object.keys(out).forEach(k => { if (!out[k].view && !out[k].add && !out[k].edit) delete out[k]; });
   return out;
 }
 
@@ -796,6 +923,13 @@ function startUnitsListeners(isAdmin) {
     subUnits = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (tab === "adminPanel") paintAdminGrid();
   });
+  unsubGlobalSettings = onSnapshot(doc(db, "settings", "global"), (snap) => {
+    globalSettings = { hijriOffsetDays: 0, ...(snap.exists() ? snap.data() : {}) };
+    const bar = document.getElementById("dateBar");
+    if (bar) bar.innerHTML = dateBarHtml();
+    if (tab === "adminPanel") paintAdminGrid();
+  });
+  startDashboardListeners();
   if (isAdmin) seedIfEmpty();
 }
 
@@ -803,7 +937,9 @@ function stopUnitsListeners() {
   if (unsubUnits) { unsubUnits(); unsubUnits = null; }
   if (unsubSubUnits) { unsubSubUnits(); unsubSubUnits = null; }
   if (unsubUsers) { unsubUsers(); unsubUsers = null; }
-  units = []; subUnits = []; allUsers = [];
+  if (unsubGlobalSettings) { unsubGlobalSettings(); unsubGlobalSettings = null; }
+  stopDashboardListeners();
+  units = []; subUnits = []; allUsers = []; globalSettings = { hijriOffsetDays: 0 };
 }
 
 onAuthStateChanged(auth, async (u) => {

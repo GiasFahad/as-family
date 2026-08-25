@@ -38,7 +38,7 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, onSnapshot, addDoc, getDoc, getDocs, serverTimestamp
+  getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, getDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Firebase project: as-family-business (Spark/free plan — no Storage used)
@@ -60,25 +60,29 @@ const db = getFirestore(app);
 const STR = {
   en: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "Dashboard", units: "Units", shopHouse: "Shop & House", events: "Events", reports: "Reports",
+    dashboard: "Dashboard", adminPanel: "Admin Panel", shopHouse: "Shop & House", events: "Events", reports: "Reports",
     admin_r: "Admin", manager_r: "Manager", staff_r: "Staff",
-    addUnit: "Add Unit", unitName: "Unit name", addSubUnit: "Add Sub Unit", subUnitName: "Sub unit name",
-    subUnitType: "Type", shop: "Shop", house: "House", event: "Event",
-    save: "Save", cancel: "Cancel", login: "Log in", email: "Email", password: "Password",
+    addUnit: "Add Unit", editUnit: "Edit Unit", unitName: "Unit name",
+    addSubUnit: "Add Sub Unit", editSubUnit: "Edit Sub Unit", subUnitName: "Sub unit name",
+    billingType: "Billing Type", hourly: "Hourly Rent", daily: "Daily Rent", monthly: "Monthly Rent", perEvent: "Per Event Rent",
+    save: "Save", cancel: "Cancel", edit: "Edit", login: "Log in", email: "Email", password: "Password",
     loading: "Loading…", noProfile: "Your account has no role assigned yet. Ask the Admin to set it up.",
     comingSoon: "This section is coming in the next build phase.",
     loginError: "Login failed. Check your email and password.",
+    units: "Units",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "ড্যাশবোর্ড", units: "ইউনিট", shopHouse: "দোকান ও বাসা", events: "ইভেন্ট", reports: "রিপোর্ট",
+    dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", shopHouse: "দোকান ও বাসা", events: "ইভেন্ট", reports: "রিপোর্ট",
     admin_r: "অ্যাডমিন", manager_r: "ম্যানেজার", staff_r: "স্টাফ",
-    addUnit: "ইউনিট যোগ করুন", unitName: "ইউনিটের নাম", addSubUnit: "সাব ইউনিট যোগ করুন", subUnitName: "সাব ইউনিটের নাম",
-    subUnitType: "ধরন", shop: "দোকান", house: "বাসা", event: "ইভেন্ট",
-    save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
+    addUnit: "ইউনিট যোগ করুন", editUnit: "ইউনিট এডিট করুন", unitName: "ইউনিটের নাম",
+    addSubUnit: "সাব ইউনিট যোগ করুন", editSubUnit: "সাব ইউনিট এডিট করুন", subUnitName: "সাব ইউনিটের নাম",
+    billingType: "বিলিং ধরন", hourly: "ঘণ্টাভিত্তিক ভাড়া", daily: "দৈনিক ভাড়া", monthly: "মাসিক ভাড়া", perEvent: "প্রতি ইভেন্ট ভাড়া",
+    save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", edit: "এডিট", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
     loading: "লোড হচ্ছে…", noProfile: "তোমার অ্যাকাউন্টে এখনো কোনো role সেট করা হয়নি। Admin-কে বলো সেট করে দিতে।",
     comingSoon: "এই অংশ পরের ধাপে যোগ হবে।",
     loginError: "লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
+    units: "ইউনিট",
   },
 };
 
@@ -107,6 +111,8 @@ const icons = {
   globe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>`,
   logout: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
   shield: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B08968" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  gear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  pencil: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
 };
 
 function render() {
@@ -174,15 +180,17 @@ function renderNoProfile() {
 
 const TABS = [
   { key: "dashboard", icon: "dashboard" },
-  { key: "units", icon: "building" },
   { key: "shopHouse", icon: "store" },
   { key: "events", icon: "party" },
   { key: "reports", icon: "report" },
+  { key: "adminPanel", icon: "gear", adminOnly: true },
 ];
 
 function renderApp() {
   const isAdmin = profile.role === "admin";
   const roleLabel = profile.role === "admin" ? t().admin_r : profile.role === "manager" ? t().manager_r : t().staff_r;
+  const visibleTabs = TABS.filter(tb => !tb.adminOnly || isAdmin);
+  if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
 
   root.innerHTML = `
   <div class="min-h-screen">
@@ -199,7 +207,7 @@ function renderApp() {
         </div>
       </div>
       <div class="mx-auto max-w-5xl flex gap-1 px-4 pb-3 overflow-x-auto" style="overflow-y:visible">
-        ${TABS.map(tb => `
+        ${visibleTabs.map(tb => `
           <button data-tab="${tb.key}" class="tab-btn ${tab === tb.key ? "active" : ""}">
             ${icons[tb.icon]} ${esc(t()[tb.key])}
           </button>`).join("")}
@@ -227,44 +235,56 @@ function comingSoonHtml(label) {
 function renderTabContent(isAdmin) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const el = document.getElementById("tabContent");
-  if (tab === "units") { renderUnitsTab(el, isAdmin); return; }
+  if (tab === "adminPanel" && isAdmin) { renderAdminPanel(el); return; }
   if (tab === "dashboard") el.innerHTML = comingSoonHtml(t().dashboard);
   if (tab === "shopHouse") el.innerHTML = comingSoonHtml(t().shopHouse);
   if (tab === "events") el.innerHTML = comingSoonHtml(t().events);
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
 }
 
-function renderUnitsTab(el, isAdmin) {
+const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
+function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge-green"; }
+
+function renderAdminPanel(el) {
   el.innerHTML = `
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">
-        ${icons.building}<h2 class="text-lg font-semibold">${t().units}</h2>
+        ${icons.gear}<h2 class="text-lg font-semibold">${t().adminPanel}</h2>
       </div>
-      ${isAdmin ? `<button id="addUnitBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUnit}</button>` : ""}
+      <button id="addUnitBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUnit}</button>
     </div>
+    <p class="text-xs mb-4" style="color:#8a8578">${esc(t().units)}: ${units.length}</p>
     <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2"></div>`;
-  if (isAdmin) document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
-  paintUnitsGrid(isAdmin);
+  document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
+  paintAdminGrid();
 }
 
-function paintUnitsGrid(isAdmin) {
+function paintAdminGrid() {
   const grid = document.getElementById("unitsGrid");
   if (!grid) return;
   grid.innerHTML = units.map(u => `
     <div class="card p-4">
       <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold" style="color:#1B4332">${esc(u.name)}</h3>
-        ${isAdmin ? `<button data-addsub="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addSubUnit}</button>` : ""}
+        <div class="flex items-center gap-1.5">
+          <h3 class="font-semibold" style="color:#1B4332">${esc(u.name)}</h3>
+          <button data-editunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px" title="${t().editUnit}">${icons.pencil}</button>
+        </div>
+        <button data-addsub="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addSubUnit}</button>
       </div>
       <ul class="flex flex-col gap-1.5">
         ${subUnits.filter(s => s.unitId === u.id).map(s => `
           <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm" style="background:#F7F5F0">
             <span>${esc(s.name)}</span>
-            <span class="badge ${s.type === "event" ? "badge-gold" : "badge-green"}">${esc(t()[s.type] || s.type)}</span>
+            <span class="flex items-center gap-1.5">
+              <span class="badge ${billingBadgeTone(s.billingType)}">${esc(t()[s.billingType] || s.billingType || "—")}</span>
+              <button data-editsub="${s.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px" title="${t().editSubUnit}">${icons.pencil}</button>
+            </span>
           </li>`).join("") || `<li class="text-xs" style="color:#8a8578">—</li>`}
       </ul>
     </div>`).join("");
   grid.querySelectorAll("[data-addsub]").forEach(b => b.addEventListener("click", () => openAddSubUnitModal(b.getAttribute("data-addsub"))));
+  grid.querySelectorAll("[data-editunit]").forEach(b => b.addEventListener("click", () => openEditUnitModal(units.find(u => u.id === b.getAttribute("data-editunit")))));
+  grid.querySelectorAll("[data-editsub]").forEach(b => b.addEventListener("click", () => openEditSubUnitModal(subUnits.find(s => s.id === b.getAttribute("data-editsub")))));
 }
 
 function openModal(title, bodyHtml, onMount) {
@@ -307,6 +327,33 @@ function openAddUnitModal() {
   });
 }
 
+function openEditUnitModal(unit) {
+  if (!unit) return;
+  openModal(t().editUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().unitName}</span>
+        <input id="unitNameInput" class="inp" value="${esc(unit.name)}" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#unitNameInput").value.trim();
+      if (!name) return;
+      await updateDoc(doc(db, "units", unit.id), { name });
+      wrap.remove();
+    });
+  });
+}
+
+function billingOptionsHtml(selected) {
+  return BILLING_TYPES.map(bt => `<option value="${bt}" ${bt === selected ? "selected" : ""}>${esc(t()[bt])}</option>`).join("");
+}
+
 function openAddSubUnitModal(unitId) {
   openModal(t().addSubUnit, `
     <div class="flex flex-col gap-4">
@@ -315,12 +362,8 @@ function openAddSubUnitModal(unitId) {
         <input id="subNameInput" class="inp" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().subUnitType}</span>
-        <select id="subTypeInput" class="inp">
-          <option value="shop">${t().shop}</option>
-          <option value="house">${t().house}</option>
-          <option value="event">${t().event}</option>
-        </select>
+        <span class="font-medium" style="color:#6B6659">${t().billingType}</span>
+        <select id="subBillingInput" class="inp">${billingOptionsHtml("monthly")}</select>
       </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
@@ -330,9 +373,37 @@ function openAddSubUnitModal(unitId) {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#subNameInput").value.trim();
-      const type = wrap.querySelector("#subTypeInput").value;
+      const billingType = wrap.querySelector("#subBillingInput").value;
       if (!name) return;
-      await addDoc(collection(db, "subUnits"), { unitId, name, type, createdAt: serverTimestamp() });
+      await addDoc(collection(db, "subUnits"), { unitId, name, billingType, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
+function openEditSubUnitModal(sub) {
+  if (!sub) return;
+  openModal(t().editSubUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().subUnitName}</span>
+        <input id="subNameInput" class="inp" value="${esc(sub.name)}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().billingType}</span>
+        <select id="subBillingInput" class="inp">${billingOptionsHtml(sub.billingType)}</select>
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#subNameInput").value.trim();
+      const billingType = wrap.querySelector("#subBillingInput").value;
+      if (!name) return;
+      await updateDoc(doc(db, "subUnits", sub.id), { name, billingType });
       wrap.remove();
     });
   });
@@ -342,8 +413,8 @@ async function seedIfEmpty() {
   const snap = await getDocs(collection(db, "units"));
   if (!snap.empty) return;
   const unitRef = await addDoc(collection(db, "units"), { name: "Green Park", createdAt: serverTimestamp() });
-  for (const s of [{ name: "Event", type: "event" }, { name: "Shop", type: "shop" }, { name: "House", type: "house" }]) {
-    await addDoc(collection(db, "subUnits"), { unitId: unitRef.id, name: s.name, type: s.type, createdAt: serverTimestamp() });
+  for (const s of [{ name: "Event", billingType: "perEvent" }, { name: "Shop", billingType: "monthly" }, { name: "House", billingType: "monthly" }]) {
+    await addDoc(collection(db, "subUnits"), { unitId: unitRef.id, name: s.name, billingType: s.billingType, createdAt: serverTimestamp() });
   }
 }
 
@@ -351,11 +422,11 @@ function startUnitsListeners(isAdmin) {
   if (unsubUnits) return;
   unsubUnits = onSnapshot(collection(db, "units"), (snap) => {
     units = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "units") paintUnitsGrid(profile?.role === "admin");
+    if (tab === "adminPanel") paintAdminGrid();
   });
   unsubSubUnits = onSnapshot(collection(db, "subUnits"), (snap) => {
     subUnits = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "units") paintUnitsGrid(profile?.role === "admin");
+    if (tab === "adminPanel") paintAdminGrid();
   });
   if (isAdmin) seedIfEmpty();
 }

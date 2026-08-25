@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>A&amp;S Family Business — By FaBi</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; background:#F7F5F0; color:#26261F; }
+  .badge { border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; }
+  .badge-gray{ background:#F1EEE5; color:#6B6659; }
+  .badge-green{ background:#E7F0EA; color:#1B4332; }
+  .badge-gold{ background:#F5EBDF; color:#8a6a3f; }
+  .card { border:1px solid #E4DFD3; background:#fff; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+  .btn { display:inline-flex; align-items:center; gap:6px; border-radius:12px; font-weight:500; padding:8px 14px; font-size:14px; transition:.15s; }
+  .btn:active{ transform:scale(.98); }
+  .btn-primary{ background:#1B4332; color:#fff; } .btn-primary:hover{ background:#143427; }
+  .btn-ghost{ background:#F1EEE5; color:#1B4332; } .btn-ghost:hover{ background:#e7e2d3; }
+  .btn-outline{ border:1px solid #D8D2C2; color:#3A3A34; } .btn-outline:hover{ background:#F7F5F0; }
+  .inp { border:1px solid #D8D2C2; background:#FCFBF8; border-radius:8px; padding:8px 12px; font-size:14px; outline:none; width:100%; }
+  .inp:focus{ border-color:#1B4332; box-shadow:0 0 0 1px #1B4332; }
+  .tab-btn{ position:relative; display:flex; align-items:center; gap:6px; white-space:nowrap; border-radius:8px; padding:6px 12px; font-size:14px; font-weight:500; color:#6B6659; }
+  .tab-btn:hover{ background:#F1EEE5; color:#1B4332; }
+  .tab-btn.active{ color:#1B4332; }
+  .tab-btn.active::after{ content:""; position:absolute; bottom:-10px; left:50%; transform:translateX(-50%); width:28px; height:4px; border-radius:9999px; background:#1B4332; }
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal-box{ width:100%; max-width:480px; max-height:92vh; overflow-y:auto; background:#fff; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+<div id="root" class="min-h-screen flex items-center justify-center">
+  <svg class="animate-spin" style="color:#1B4332" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="4"/></svg>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, onSnapshot, addDoc, getDoc, getDocs, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// Firebase project: as-family-business (Spark/free plan — no Storage used)
+const firebaseConfig = {
+  apiKey: "AIzaSyDTK-JTPA9JoBlS6r5JKO2gIkkoThrCZkA",
+  authDomain: "as-family-business.firebaseapp.com",
+  projectId: "as-family-business",
+  storageBucket: "as-family-business.firebasestorage.app",
+  messagingSenderId: "216489135245",
+  appId: "1:216489135245:web:779eba73fde1bf8f76a6c4",
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ---------------------------------------------------------------------------
+// i18n
+// ---------------------------------------------------------------------------
+const STR = {
+  en: {
+    appName: "A&S Family Business", brand: "By FaBi",
+    dashboard: "Dashboard", units: "Units", shopHouse: "Shop & House", events: "Events", reports: "Reports",
+    admin_r: "Admin", manager_r: "Manager", staff_r: "Staff",
+    addUnit: "Add Unit", unitName: "Unit name", addSubUnit: "Add Sub Unit", subUnitName: "Sub unit name",
+    subUnitType: "Type", shop: "Shop", house: "House", event: "Event",
+    save: "Save", cancel: "Cancel", login: "Log in", email: "Email", password: "Password",
+    loading: "Loading…", noProfile: "Your account has no role assigned yet. Ask the Admin to set it up.",
+    comingSoon: "This section is coming in the next build phase.",
+    loginError: "Login failed. Check your email and password.",
+  },
+  bn: {
+    appName: "A&S Family Business", brand: "By FaBi",
+    dashboard: "ড্যাশবোর্ড", units: "ইউনিট", shopHouse: "দোকান ও বাসা", events: "ইভেন্ট", reports: "রিপোর্ট",
+    admin_r: "অ্যাডমিন", manager_r: "ম্যানেজার", staff_r: "স্টাফ",
+    addUnit: "ইউনিট যোগ করুন", unitName: "ইউনিটের নাম", addSubUnit: "সাব ইউনিট যোগ করুন", subUnitName: "সাব ইউনিটের নাম",
+    subUnitType: "ধরন", shop: "দোকান", house: "বাসা", event: "ইভেন্ট",
+    save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
+    loading: "লোড হচ্ছে…", noProfile: "তোমার অ্যাকাউন্টে এখনো কোনো role সেট করা হয়নি। Admin-কে বলো সেট করে দিতে।",
+    comingSoon: "এই অংশ পরের ধাপে যোগ হবে।",
+    loginError: "লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
+  },
+};
+
+let lang = "bn";
+let tab = "dashboard";
+let currentUser = null;
+let profile = null; // undefined-state handled via booleans below
+let authChecked = false;
+let profileChecked = false;
+let units = [];
+let subUnits = [];
+let unsubUnits = null, unsubSubUnits = null;
+
+const root = document.getElementById("root");
+const t = () => STR[lang];
+const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])));
+
+const icons = {
+  building: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1"/></svg>`,
+  dashboard: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
+  store: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>`,
+  party: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5.8 11.3 2 22l10.7-3.8"/><path d="m11 13 5-5"/><path d="m14 4 1 1"/><path d="m19 9 1 1"/></svg>`,
+  report: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>`,
+  plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`,
+  x: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  globe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>`,
+  logout: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
+  shield: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B08968" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+};
+
+function render() {
+  if (!authChecked || (currentUser && !profileChecked)) {
+    root.innerHTML = `<div class="min-h-screen flex items-center justify-center">
+      <svg class="animate-spin" style="color:#1B4332" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="4"/></svg>
+    </div>`;
+    return;
+  }
+  if (!currentUser) { renderLogin(); return; }
+  if (!profile) { renderNoProfile(); return; }
+  renderApp();
+}
+
+function renderLogin() {
+  root.innerHTML = `
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="card p-6 w-full max-w-sm">
+      <div class="text-center mb-6">
+        <div class="text-xl font-bold" style="color:#1B4332">${esc(t().appName)}</div>
+        <div class="text-xs font-medium" style="color:#B08968">${esc(t().brand)}</div>
+      </div>
+      <form id="loginForm" class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().email}</span>
+          <input type="email" required id="loginEmail" class="inp" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().password}</span>
+          <input type="password" required id="loginPassword" class="inp" />
+        </label>
+        <div id="loginErr" class="text-xs" style="color:#9B2C2C"></div>
+        <button type="submit" class="btn btn-primary justify-center" id="loginBtn">${t().login}</button>
+      </form>
+    </div>
+  </div>`;
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("loginBtn");
+    const errBox = document.getElementById("loginErr");
+    errBox.textContent = "";
+    btn.textContent = t().loading;
+    try {
+      await signInWithEmailAndPassword(auth,
+        document.getElementById("loginEmail").value.trim(),
+        document.getElementById("loginPassword").value);
+    } catch (e) {
+      errBox.textContent = t().loginError;
+      btn.textContent = t().login;
+    }
+  });
+}
+
+function renderNoProfile() {
+  root.innerHTML = `
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="card p-6 max-w-sm text-center">
+      <div class="flex justify-center mb-3">${icons.shield}</div>
+      <p class="text-sm" style="color:#3A3A34">${esc(t().noProfile)}</p>
+      <button id="logoutBtn2" class="btn btn-outline mt-4">${icons.logout} Log out</button>
+    </div>
+  </div>`;
+  document.getElementById("logoutBtn2").addEventListener("click", () => signOut(auth));
+}
+
+const TABS = [
+  { key: "dashboard", icon: "dashboard" },
+  { key: "units", icon: "building" },
+  { key: "shopHouse", icon: "store" },
+  { key: "events", icon: "party" },
+  { key: "reports", icon: "report" },
+];
+
+function renderApp() {
+  const isAdmin = profile.role === "admin";
+  const roleLabel = profile.role === "admin" ? t().admin_r : profile.role === "manager" ? t().manager_r : t().staff_r;
+
+  root.innerHTML = `
+  <div class="min-h-screen">
+    <div class="sticky top-0 z-30 border-b" style="border-color:#E4DFD3;background:rgba(252,251,248,.95);backdrop-filter:blur(4px)">
+      <div class="mx-auto max-w-5xl flex items-center justify-between px-4 py-3">
+        <div class="flex items-baseline gap-2">
+          <span class="text-xl font-bold" style="color:#1B4332">${esc(t().appName)}</span>
+          <span class="text-xs font-medium" style="color:#B08968">${esc(t().brand)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1 border rounded-lg px-2 py-1 text-xs bg-white" style="border-color:#D8D2C2">${esc(roleLabel)}</div>
+          <button id="langBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.globe} ${lang === "en" ? "বাংলা" : "English"}</button>
+          <button id="logoutBtn" class="btn btn-outline" style="padding:6px 10px;color:#9B2C2C">${icons.logout}</button>
+        </div>
+      </div>
+      <div class="mx-auto max-w-5xl flex gap-1 px-4 pb-3 overflow-x-auto" style="overflow-y:visible">
+        ${TABS.map(tb => `
+          <button data-tab="${tb.key}" class="tab-btn ${tab === tb.key ? "active" : ""}">
+            ${icons[tb.icon]} ${esc(t()[tb.key])}
+          </button>`).join("")}
+      </div>
+    </div>
+    <div class="mx-auto max-w-5xl px-4 py-6" id="tabContent"></div>
+  </div>`;
+
+  document.getElementById("langBtn").addEventListener("click", () => { lang = lang === "en" ? "bn" : "en"; render(); });
+  document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
+  document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+    tab = b.getAttribute("data-tab"); renderTabContent(isAdmin);
+  }));
+
+  renderTabContent(isAdmin);
+}
+
+function comingSoonHtml(label) {
+  return `<div class="card p-8 text-center">
+    <p class="text-sm font-medium" style="color:#1B4332">${esc(label)}</p>
+    <p class="text-xs mt-1" style="color:#8a8578">${esc(t().comingSoon)}</p>
+  </div>`;
+}
+
+function renderTabContent(isAdmin) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
+  const el = document.getElementById("tabContent");
+  if (tab === "units") { renderUnitsTab(el, isAdmin); return; }
+  if (tab === "dashboard") el.innerHTML = comingSoonHtml(t().dashboard);
+  if (tab === "shopHouse") el.innerHTML = comingSoonHtml(t().shopHouse);
+  if (tab === "events") el.innerHTML = comingSoonHtml(t().events);
+  if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
+}
+
+function renderUnitsTab(el, isAdmin) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">
+        ${icons.building}<h2 class="text-lg font-semibold">${t().units}</h2>
+      </div>
+      ${isAdmin ? `<button id="addUnitBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUnit}</button>` : ""}
+    </div>
+    <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2"></div>`;
+  if (isAdmin) document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
+  paintUnitsGrid(isAdmin);
+}
+
+function paintUnitsGrid(isAdmin) {
+  const grid = document.getElementById("unitsGrid");
+  if (!grid) return;
+  grid.innerHTML = units.map(u => `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold" style="color:#1B4332">${esc(u.name)}</h3>
+        ${isAdmin ? `<button data-addsub="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addSubUnit}</button>` : ""}
+      </div>
+      <ul class="flex flex-col gap-1.5">
+        ${subUnits.filter(s => s.unitId === u.id).map(s => `
+          <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm" style="background:#F7F5F0">
+            <span>${esc(s.name)}</span>
+            <span class="badge ${s.type === "event" ? "badge-gold" : "badge-green"}">${esc(t()[s.type] || s.type)}</span>
+          </li>`).join("") || `<li class="text-xs" style="color:#8a8578">—</li>`}
+      </ul>
+    </div>`).join("");
+  grid.querySelectorAll("[data-addsub]").forEach(b => b.addEventListener("click", () => openAddSubUnitModal(b.getAttribute("data-addsub"))));
+}
+
+function openModal(title, bodyHtml, onMount) {
+  const wrap = document.createElement("div");
+  wrap.className = "modal-backdrop";
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <div class="sticky top-0 flex items-center justify-between border-b bg-white px-5 py-3.5" style="border-color:#EEEAE0">
+        <h3 class="font-semibold" style="color:#1B4332">${esc(title)}</h3>
+        <button id="modalClose" style="color:#8a8578">${icons.x}</button>
+      </div>
+      <div class="p-5">${bodyHtml}</div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+  wrap.querySelector("#modalClose").addEventListener("click", () => wrap.remove());
+  onMount(wrap);
+  return wrap;
+}
+
+function openAddUnitModal() {
+  openModal(t().addUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().unitName}</span>
+        <input id="unitNameInput" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#unitNameInput").value.trim();
+      if (!name) return;
+      await addDoc(collection(db, "units"), { name, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
+function openAddSubUnitModal(unitId) {
+  openModal(t().addSubUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().subUnitName}</span>
+        <input id="subNameInput" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().subUnitType}</span>
+        <select id="subTypeInput" class="inp">
+          <option value="shop">${t().shop}</option>
+          <option value="house">${t().house}</option>
+          <option value="event">${t().event}</option>
+        </select>
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#subNameInput").value.trim();
+      const type = wrap.querySelector("#subTypeInput").value;
+      if (!name) return;
+      await addDoc(collection(db, "subUnits"), { unitId, name, type, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
+async function seedIfEmpty() {
+  const snap = await getDocs(collection(db, "units"));
+  if (!snap.empty) return;
+  const unitRef = await addDoc(collection(db, "units"), { name: "Green Park", createdAt: serverTimestamp() });
+  for (const s of [{ name: "Event", type: "event" }, { name: "Shop", type: "shop" }, { name: "House", type: "house" }]) {
+    await addDoc(collection(db, "subUnits"), { unitId: unitRef.id, name: s.name, type: s.type, createdAt: serverTimestamp() });
+  }
+}
+
+function startUnitsListeners(isAdmin) {
+  if (unsubUnits) return;
+  unsubUnits = onSnapshot(collection(db, "units"), (snap) => {
+    units = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "units") paintUnitsGrid(profile?.role === "admin");
+  });
+  unsubSubUnits = onSnapshot(collection(db, "subUnits"), (snap) => {
+    subUnits = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "units") paintUnitsGrid(profile?.role === "admin");
+  });
+  if (isAdmin) seedIfEmpty();
+}
+
+function stopUnitsListeners() {
+  if (unsubUnits) { unsubUnits(); unsubUnits = null; }
+  if (unsubSubUnits) { unsubSubUnits(); unsubSubUnits = null; }
+  units = []; subUnits = [];
+}
+
+onAuthStateChanged(auth, async (u) => {
+  authChecked = true;
+  currentUser = u || null;
+  if (!u) { profile = null; profileChecked = true; stopUnitsListeners(); render(); return; }
+  profileChecked = false; render();
+  const snap = await getDoc(doc(db, "users", u.uid));
+  profile = snap.exists() ? snap.data() : null;
+  profileChecked = true;
+  render();
+  if (profile) startUnitsListeners(profile.role === "admin");
+});
+</script>
+</body>
+</html>

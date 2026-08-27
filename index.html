@@ -90,6 +90,22 @@ const STR = {
     hijriAdjust: "Hijri Date Adjustment", hijriAdjustHint: "Shift the Hijri date shown to everyone by a few days to match local moon-sighting announcements.", days: "days",
     dashboardSummary: "Overview", upcomingEvent: "Upcoming Event", pendingEvents: "Pending Events",
     shopUncollected: "Shop Rent Due", houseUncollected: "House Rent Due", none: "None",
+    profiles: "Profiles", addProfile: "Add Profile", phone: "Phone", rentAmount: "Rent Amount (৳)",
+    collectRent: "Collect Rent", paid: "Paid", due: "Due",
+    addExpense: "Add Expense", expenseCategory: "Category", amountLabel: "Amount (৳)", details: "Details",
+    addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a sub unit",
+    noData: "Nothing here yet.", period: "This period",
+    quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.",
+    customerName: "Customer Name", eventType: "Event Type", addType: "Add Type",
+    bookingDate: "Booking Date", eventDate: "Event Date", eventTime: "Event Time",
+    tableQty: "Table Qty (Lunch)", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
+    advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
+    balance: "Balance", collected: "Collected", status: "Status",
+    pendingStatus: "Pending", completedStatus: "Completed", cancelledStatus: "Cancelled",
+    cancelEvent: "Cancel Event", cancelReason: "Reason for cancellation",
+    boyWage: "Boy Wage", labourWage: "Labour Wage", otherExpense: "Other", eventExpenseType: "Expense Type",
+    payHistory: "Payment History", eventExpenseHistory: "Event Expenses",
+    confirmCancel: "This will mark the event as cancelled.",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
@@ -121,6 +137,22 @@ const STR = {
     hijriAdjust: "হিজরি তারিখ সমন্বয়", hijriAdjustHint: "সবার জন্য দেখানো হিজরি তারিখ কয়েক দিন এদিক-ওদিক করো, স্থানীয় চাঁদ দেখা ঘোষণার সাথে মেলাতে।", days: "দিন",
     dashboardSummary: "সারসংক্ষেপ", upcomingEvent: "আসন্ন ইভেন্ট", pendingEvents: "পেন্ডিং ইভেন্ট",
     shopUncollected: "দোকানের বাকি ভাড়া", houseUncollected: "বাসার বাকি ভাড়া", none: "নেই",
+    profiles: "প্রোফাইল", addProfile: "প্রোফাইল যোগ করুন", phone: "ফোন নম্বর", rentAmount: "ভাড়া (৳)",
+    collectRent: "ভাড়া আদায়", paid: "আদায় হয়েছে", due: "বাকি",
+    addExpense: "খরচ যোগ করুন", expenseCategory: "খাত", amountLabel: "পরিমাণ (৳)", details: "বিবরণ",
+    addCategory: "খাত যোগ করুন", newCategoryName: "নতুন খাতের নাম", selectSubUnit: "একটি সাব ইউনিট বাছাই করুন",
+    noData: "এখনো কিছু যোগ করা হয়নি।", period: "এই মেয়াদে",
+    quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং",
+    customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন",
+    bookingDate: "বুকিং তারিখ", eventDate: "ইভেন্টের তারিখ", eventTime: "ইভেন্টের সময়",
+    tableQty: "টেবিল সংখ্যা (লাঞ্চ)", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
+    advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
+    balance: "বাকি আছে", collected: "আদায়কৃত", status: "অবস্থা",
+    pendingStatus: "পেন্ডিং", completedStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
+    cancelEvent: "ইভেন্ট বাতিল করুন", cancelReason: "বাতিলের কারণ",
+    boyWage: "বয় মজুরি", labourWage: "শ্রমিক মজুরি", otherExpense: "অন্যান্য", eventExpenseType: "খরচের ধরন",
+    payHistory: "পেমেন্টের ইতিহাস", eventExpenseHistory: "ইভেন্টের খরচ",
+    confirmCancel: "এতে ইভেন্টটি বাতিল হিসেবে চিহ্নিত হবে।",
   },
 };
 
@@ -163,6 +195,7 @@ const BANGLA_MONTHS = ["Boishakh","Jestha","Ashar","Shrabon","Bhadro","Ashwin","
 const HIJRI_MONTHS = ["Muharram","Safar","Rabiul Awal","Rabius Sani","Jamadal Awal","Jamadas Sani","Rajab","Shaban","Ramadan","Shawwal","Zilqad","Zilhajj"];
 
 function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
 function isGregLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
 
 function weekNumberSunday(date) {
@@ -368,8 +401,8 @@ function renderTabContent(isAdmin) {
   const el = document.getElementById("tabContent");
   if (tab === "adminPanel" && isAdmin) { renderAdminPanel(el); return; }
   if (tab === "dashboard") { renderDashboard(el); return; }
-  if (tab === "shopHouse") el.innerHTML = comingSoonHtml(t().shopHouse);
-  if (tab === "events") el.innerHTML = comingSoonHtml(t().events);
+  if (tab === "shopHouse") { renderShopHouseTab(el, isAdmin); return; }
+  if (tab === "events") { renderEventsTab(el, isAdmin); return; }
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
 }
 
@@ -377,28 +410,61 @@ function renderTabContent(isAdmin) {
 // Dashboard summary (live-wired; will populate once Shop&House/Events modules exist)
 // ---------------------------------------------------------------------------
 let dashEvents = [], dashTenants = [], dashRentPayments = [];
+let expenses = [], expenseCategories = [];
+let eventTypes = [], eventPayments = [], eventExpenses = [];
 let unsubDashEvents = null, unsubDashTenants = null, unsubDashRentPayments = null;
+let unsubExpenses = null, unsubExpenseCategories = null;
+let unsubEventTypes = null, unsubEventPayments = null, unsubEventExpenses = null;
 
 function startDashboardListeners() {
   if (unsubDashEvents) return;
   unsubDashEvents = onSnapshot(collection(db, "events"), (snap) => {
     dashEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (tab === "dashboard") paintDashboardCard();
+    if (tab === "events") paintEventsTab();
   });
   unsubDashTenants = onSnapshot(collection(db, "tenants"), (snap) => {
     dashTenants = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (tab === "dashboard") paintDashboardCard();
+    if (tab === "shopHouse") paintShopHouseTab();
   });
   unsubDashRentPayments = onSnapshot(collection(db, "rentPayments"), (snap) => {
     dashRentPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (tab === "dashboard") paintDashboardCard();
+    if (tab === "shopHouse") paintShopHouseTab();
+  });
+  unsubExpenses = onSnapshot(collection(db, "expenses"), (snap) => {
+    expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "shopHouse") paintShopHouseTab();
+  });
+  unsubExpenseCategories = onSnapshot(collection(db, "expenseCategories"), (snap) => {
+    expenseCategories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "shopHouse") paintShopHouseTab();
+  });
+  unsubEventTypes = onSnapshot(collection(db, "eventTypes"), (snap) => {
+    eventTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  });
+  unsubEventPayments = onSnapshot(collection(db, "eventPayments"), (snap) => {
+    eventPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (tab === "events") paintEventsTab();
+    refreshOpenEventDetail();
+  });
+  unsubEventExpenses = onSnapshot(collection(db, "eventExpenses"), (snap) => {
+    eventExpenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    refreshOpenEventDetail();
   });
 }
 function stopDashboardListeners() {
   if (unsubDashEvents) { unsubDashEvents(); unsubDashEvents = null; }
   if (unsubDashTenants) { unsubDashTenants(); unsubDashTenants = null; }
   if (unsubDashRentPayments) { unsubDashRentPayments(); unsubDashRentPayments = null; }
-  dashEvents = []; dashTenants = []; dashRentPayments = [];
+  if (unsubExpenses) { unsubExpenses(); unsubExpenses = null; }
+  if (unsubExpenseCategories) { unsubExpenseCategories(); unsubExpenseCategories = null; }
+  if (unsubEventTypes) { unsubEventTypes(); unsubEventTypes = null; }
+  if (unsubEventPayments) { unsubEventPayments(); unsubEventPayments = null; }
+  if (unsubEventExpenses) { unsubEventExpenses(); unsubEventExpenses = null; }
+  dashEvents = []; dashTenants = []; dashRentPayments = []; expenses = []; expenseCategories = [];
+  eventTypes = []; eventPayments = []; eventExpenses = [];
 }
 
 function computeDashboardStats() {
@@ -425,7 +491,17 @@ function computeDashboardStats() {
 }
 
 function renderDashboard(el) {
-  el.innerHTML = `<div id="dashCard"></div><div class="mt-5">${comingSoonHtml(t().dashboard)}</div>`;
+  el.innerHTML = `
+    <button id="quickBookBtn" class="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white shadow-sm mb-5" style="background:#B08968">
+      ${icons.party} ${t().quickBookEvent}
+    </button>
+    <div id="dashCard"></div>`;
+  document.getElementById("quickBookBtn").addEventListener("click", () => {
+    tab = "events";
+    renderTabContent(profile?.role === "admin");
+    const subs = eventSubUnits();
+    if (subs.length) { activeEventSub = subs[0].id; openBookEventModal(activeEventSub); }
+  });
   paintDashboardCard();
 }
 
@@ -457,8 +533,554 @@ function paintDashboardCard() {
     </div>`;
 }
 
+// ---------------------------------------------------------------------------
+// Shop & House module: per Sub Unit (billingType != perEvent) tenant/profile
+// list, rent collection, and expense tracking
+// ---------------------------------------------------------------------------
+let activeShopSub = null;
+
+function shopHouseSubUnits() { return subUnits.filter(s => s.billingType !== "perEvent"); }
+
+function periodLabel(su) {
+  const now = new Date();
+  if (su && su.billingType === "daily") return todayISO();
+  if (su && su.billingType === "hourly") return todayISO();
+  return `${now.getMonth() + 1}-${now.getFullYear()}`;
+}
+function tenantPaidThisPeriod(tenant) {
+  const now = new Date();
+  const month = now.getMonth() + 1, year = now.getFullYear();
+  return dashRentPayments.some(p => p.tenantId === tenant.id && p.month === month && p.year === year);
+}
+
+function renderShopHouseTab(el, isAdmin) {
+  const subs = shopHouseSubUnits();
+  if (!activeShopSub && subs.length) activeShopSub = subs[0].id;
+  el.innerHTML = `
+    <div class="flex flex-wrap gap-1.5 mb-5">
+      ${subs.map(s => `
+        <button data-shopsub="${s.id}" class="tab-btn" style="border-radius:8px;background:${s.id === activeShopSub ? "#1B4332" : "#fff"};color:${s.id === activeShopSub ? "#fff" : "#6B6659"};border:1px solid #D8D2C2">
+          ${esc(unitSubLabel(s.id))}
+        </button>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`}
+    </div>
+    <div id="shopHouseBody"></div>`;
+  el.querySelectorAll("[data-shopsub]").forEach(b => b.addEventListener("click", () => {
+    activeShopSub = b.getAttribute("data-shopsub"); renderShopHouseTab(el, isAdmin);
+  }));
+  paintShopHouseTab(isAdmin);
+}
+
+function unitSubLabel(subUnitId) {
+  const su = subUnits.find(s => s.id === subUnitId);
+  const u = units.find(x => x.id === su?.unitId);
+  return `${u?.name || "?"} / ${su?.name || "?"}`;
+}
+
+function paintShopHouseTab(isAdminArg) {
+  const body = document.getElementById("shopHouseBody");
+  if (!body) return;
+  const isAdmin = isAdminArg !== undefined ? isAdminArg : profile?.role === "admin";
+  const su = subUnits.find(s => s.id === activeShopSub);
+  if (!su) { body.innerHTML = `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`; return; }
+  const tenants = dashTenants.filter(tn => tn.subUnitId === activeShopSub);
+  const cats = expenseCategories.filter(c => c.subUnitId === activeShopSub);
+  const exps = expenses.filter(e => e.subUnitId === activeShopSub);
+
+  body.innerHTML = `
+    <div class="card p-4 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold" style="color:#1B4332">${t().profiles}</h3>
+        <button id="addTenantBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addProfile}</button>
+      </div>
+      <div id="tenantsList" class="flex flex-col gap-2"></div>
+    </div>
+
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold" style="color:#1B4332">${t().addExpense}</h3>
+        <button id="addExpenseBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>
+      </div>
+      ${isAdmin ? `
+        <div class="flex flex-wrap items-center gap-1.5 mb-3">
+          ${cats.map(c => `<span class="badge badge-green">${esc(c.name)}</span>`).join("")}
+          <button id="addCatBtn" class="btn btn-outline" style="padding:3px 8px;font-size:11px">${icons.plus}${t().addCategory}</button>
+        </div>` : ""}
+      <div id="expensesList" class="flex flex-col gap-2"></div>
+    </div>`;
+
+  document.getElementById("tenantsList").innerHTML = tenants.map(tn => {
+    const paid = tenantPaidThisPeriod(tn);
+    return `
+    <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0">
+      <div>
+        <div class="text-sm font-medium">${esc(tn.name)}</div>
+        <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge ${paid ? "badge-green" : "badge-gold"}">${paid ? t().paid : t().due} · ৳${Number(tn.rentAmount || 0).toLocaleString()}</span>
+        ${!paid ? `<button data-collect="${tn.id}" class="btn btn-primary" style="padding:4px 10px;font-size:12px">${t().collectRent}</button>` : ""}
+      </div>
+    </div>`;
+  }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+
+  document.getElementById("expensesList").innerHTML = exps.map(ex => `
+    <div class="flex items-center justify-between rounded-xl px-3 py-2 text-sm" style="background:#F7F5F0">
+      <span>${esc(cats.find(c => c.id === ex.categoryId)?.name || "—")} ${ex.details ? "— " + esc(ex.details) : ""}</span>
+      <span class="font-medium">৳${Number(ex.amount || 0).toLocaleString()}</span>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+
+  document.getElementById("addTenantBtn").addEventListener("click", () => openAddTenantModal(activeShopSub));
+  document.getElementById("addExpenseBtn").addEventListener("click", () => openAddExpenseModal(activeShopSub, cats));
+  const catBtn = document.getElementById("addCatBtn");
+  if (catBtn) catBtn.addEventListener("click", () => openAddCategoryModal(activeShopSub));
+  body.querySelectorAll("[data-collect]").forEach(b => b.addEventListener("click", () => {
+    const tn = tenants.find(x => x.id === b.getAttribute("data-collect"));
+    if (tn) openCollectRentModal(tn);
+  }));
+}
+
+function openAddTenantModal(subUnitId) {
+  openModal(t().addProfile, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().name}</span>
+        <input id="tnName" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().address}</span>
+        <input id="tnAddress" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().phone}</span>
+        <input id="tnPhone" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().rentAmount}</span>
+        <input id="tnRent" type="number" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#tnName").value.trim();
+      if (!name) return;
+      await addDoc(collection(db, "tenants"), {
+        subUnitId, name,
+        address: wrap.querySelector("#tnAddress").value.trim(),
+        phone: wrap.querySelector("#tnPhone").value.trim(),
+        rentAmount: Number(wrap.querySelector("#tnRent").value) || 0,
+        active: true, createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openCollectRentModal(tenant) {
+  openModal(`${t().collectRent} — ${tenant.name}`, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="rpAmount" type="number" class="inp" value="${Number(tenant.rentAmount || 0)}" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const now = new Date();
+      await addDoc(collection(db, "rentPayments"), {
+        tenantId: tenant.id, subUnitId: tenant.subUnitId,
+        month: now.getMonth() + 1, year: now.getFullYear(),
+        amount: Number(wrap.querySelector("#rpAmount").value) || 0,
+        paidDate: todayISO(), createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openAddExpenseModal(subUnitId, cats) {
+  openModal(t().addExpense, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().expenseCategory}</span>
+        <select id="exCat" class="inp">
+          ${cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("") || `<option value="">—</option>`}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="exAmount" type="number" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().details}</span>
+        <input id="exDetails" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const amount = Number(wrap.querySelector("#exAmount").value) || 0;
+      if (!amount) return;
+      await addDoc(collection(db, "expenses"), {
+        subUnitId, categoryId: wrap.querySelector("#exCat").value,
+        amount, details: wrap.querySelector("#exDetails").value.trim(),
+        date: todayISO(), createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openAddCategoryModal(subUnitId) {
+  openModal(t().addCategory, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().newCategoryName}</span>
+        <input id="catName" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#catName").value.trim();
+      if (!name) return;
+      await addDoc(collection(db, "expenseCategories"), { subUnitId, name, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
 const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
 function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge-green"; }
+
+// ---------------------------------------------------------------------------
+// Events module: per Sub Unit (billingType === perEvent) booking, payments,
+// cancel/refund
+// ---------------------------------------------------------------------------
+let activeEventSub = null;
+let openEventId = null;
+
+function eventSubUnits() { return subUnits.filter(s => s.billingType === "perEvent"); }
+
+function eventTotals(eventId) {
+  const pays = eventPayments.filter(p => p.eventId === eventId);
+  const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
+  const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
+  return { paid, refunded };
+}
+
+function nextMemoNo(subUnitId) {
+  const su = subUnits.find(s => s.id === subUnitId);
+  const u = units.find(x => x.id === su?.unitId);
+  const prefix = (u?.name || "EVT").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "EV";
+  const n = dashEvents.filter(e => e.subUnitId === subUnitId).length + 1;
+  return `${prefix}-EVT-${String(n).padStart(4, "0")}`;
+}
+
+function renderEventsTab(el, isAdmin) {
+  const subs = eventSubUnits();
+  if (!activeEventSub && subs.length) activeEventSub = subs[0].id;
+  el.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+      <div class="flex flex-wrap gap-1.5">
+        ${subs.map(s => `
+          <button data-eventsub="${s.id}" class="tab-btn" style="border-radius:8px;background:${s.id === activeEventSub ? "#1B4332" : "#fff"};color:${s.id === activeEventSub ? "#fff" : "#6B6659"};border:1px solid #D8D2C2">
+            ${esc(unitSubLabel(s.id))}
+          </button>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`}
+      </div>
+      ${activeEventSub ? `<button id="bookEventBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px">${icons.plus}${t().bookEvent}</button>` : ""}
+    </div>
+    <div id="eventsBody" class="grid gap-3"></div>`;
+  el.querySelectorAll("[data-eventsub]").forEach(b => b.addEventListener("click", () => {
+    activeEventSub = b.getAttribute("data-eventsub"); renderEventsTab(el, isAdmin);
+  }));
+  const bookBtn = document.getElementById("bookEventBtn");
+  if (bookBtn) bookBtn.addEventListener("click", () => openBookEventModal(activeEventSub));
+  paintEventsTab();
+}
+
+function paintEventsTab() {
+  const body = document.getElementById("eventsBody");
+  if (!body) return;
+  const list = dashEvents.filter(e => e.subUnitId === activeEventSub);
+  body.innerHTML = list.map(e => {
+    const { paid, refunded } = eventTotals(e.id);
+    const balance = (e.totalRentAmount || 0) - paid + refunded;
+    const tone = e.status === "cancelled" ? "badge-gray" : balance <= 0 ? "badge-green" : "badge-gold";
+    return `
+    <div class="card p-4" data-openevent="${e.id}" style="cursor:pointer">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-sm font-semibold" style="color:#1B4332">${esc(e.customerName)} <span class="text-xs font-normal" style="color:#B08968">${esc(e.memoNo)}</span>
+          ${e.status === "cancelled" ? `<span class="badge badge-gray ml-1">${t().cancelledStatus}</span>` : ""}</div>
+          <div class="text-xs" style="color:#8a8578">${esc(e.eventDate || "")} ${esc(e.eventTime || "")} · ${t().tableQty}: ${e.tableQty || 0} · ${t().boyQty}: ${e.boyQty || 0}</div>
+        </div>
+        <span class="badge ${tone}">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</span>
+      </div>
+    </div>`;
+  }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  body.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
+}
+
+function eventTypeChipsHtml(selectedIds) {
+  return `<div id="etypeChips" class="flex flex-wrap gap-1.5">
+    ${eventTypes.map(et => `
+      <button type="button" data-etype="${et.id}" class="badge" style="cursor:pointer;border:1px solid ${selectedIds.includes(et.id) ? "#1B4332" : "#D8D2C2"};background:${selectedIds.includes(et.id) ? "#1B4332" : "#fff"};color:${selectedIds.includes(et.id) ? "#fff" : "#6B6659"}">
+        ${esc(et.name)}
+      </button>`).join("")}
+    <button type="button" id="addEtypeBtn" class="badge" style="cursor:pointer;border:1px dashed #D8D2C2;color:#8a8578">${icons.plus}${t().addType}</button>
+  </div>`;
+}
+
+function openBookEventModal(subUnitId) {
+  let selected = [];
+  const memo = nextMemoNo(subUnitId);
+  openModal(`${t().bookEvent} — ${memo}`, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().customerName}</span>
+        <input id="evName" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().address}</span>
+        <input id="evAddress" class="inp" />
+      </label>
+      <div class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
+        <div id="etypeWrap">${eventTypeChipsHtml(selected)}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="evBooking" type="date" class="inp" value="${todayISO()}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventDate}</span><input id="evDate" type="date" class="inp" value="${todayISO()}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventTime}</span><input id="evTime" type="time" class="inp" value="18:00" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" /></label>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    function bindChips() {
+      wrap.querySelectorAll("[data-etype]").forEach(b => b.addEventListener("click", () => {
+        const id = b.getAttribute("data-etype");
+        selected = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
+        wrap.querySelector("#etypeWrap").innerHTML = eventTypeChipsHtml(selected);
+        bindChips();
+      }));
+      const addBtn = wrap.querySelector("#addEtypeBtn");
+      if (addBtn) addBtn.addEventListener("click", () => openAddEventTypeModal(wrap));
+    }
+    bindChips();
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const customerName = wrap.querySelector("#evName").value.trim();
+      if (!customerName) return;
+      await addDoc(collection(db, "events"), {
+        subUnitId, memoNo: nextMemoNo(subUnitId),
+        customerName, customerAddress: wrap.querySelector("#evAddress").value.trim(),
+        eventTypeIds: selected,
+        bookingDate: wrap.querySelector("#evBooking").value,
+        eventDate: wrap.querySelector("#evDate").value,
+        eventTime: wrap.querySelector("#evTime").value,
+        totalRentAmount: Number(wrap.querySelector("#evTotal").value) || 0,
+        tableQty: Number(wrap.querySelector("#evTable").value) || 0,
+        boyQty: Number(wrap.querySelector("#evBoy").value) || 0,
+        status: "pending", createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openAddEventTypeModal(parentWrap) {
+  openModal(t().addType, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
+        <input id="etName" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#etName").value.trim();
+      if (!name) return;
+      await addDoc(collection(db, "eventTypes"), { name, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
+function refreshOpenEventDetail() {
+  if (openEventId && document.getElementById("eventDetailBody")) paintEventDetailBody();
+}
+
+function openEventDetailModal(eventId) {
+  openEventId = eventId;
+  const wrap = openModal("…", `<div id="eventDetailBody"></div>`, () => {});
+  wrap.dataset.eventModal = "1";
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) { openEventId = null; } });
+  wrap.querySelector("#modalClose").addEventListener("click", () => { openEventId = null; });
+  paintEventDetailBody();
+}
+
+function paintEventDetailBody() {
+  const box = document.getElementById("eventDetailBody");
+  if (!box) return;
+  const e = dashEvents.find(x => x.id === openEventId);
+  if (!e) { box.innerHTML = ""; return; }
+  const { paid, refunded } = eventTotals(openEventId);
+  const balance = (e.totalRentAmount || 0) - paid + refunded;
+  const pays = eventPayments.filter(p => p.eventId === openEventId);
+  const exps = eventExpenses.filter(x => x.eventId === openEventId);
+
+  box.closest(".modal-box").querySelector("h3").textContent = `${e.customerName} — ${e.memoNo}`;
+
+  box.innerHTML = `
+    <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+      <div><span style="color:#8a8578">${t().eventDate}: </span>${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
+      <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : t().pendingStatus}</span></div>
+      <div><span style="color:#8a8578">${t().totalRent}: </span>৳${Number(e.totalRentAmount || 0).toLocaleString()}</div>
+      <div><span style="color:#8a8578">${t().collected}: </span>৳${paid.toLocaleString()}</div>
+      ${refunded > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().refund}: </span>-৳${refunded.toLocaleString()}</div>` : ""}
+      <div class="col-span-2 text-base font-semibold" style="color:#1B4332">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</div>
+    </div>
+
+    ${e.status !== "cancelled" ? `
+    <div class="flex flex-wrap gap-2 mb-4">
+      <button id="btnAdvance" class="btn" style="background:#B08968;color:#fff;padding:6px 10px;font-size:12px">${icons.plus}${t().advance}</button>
+      <button id="btnDue" class="btn" style="background:#B08968;color:#fff;padding:6px 10px;font-size:12px">${icons.plus}${t().dueCollection}</button>
+      <button id="btnExp" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().eventExpenseHistory}</button>
+      ${paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : ""}
+      <button id="btnCancelEvent" class="btn" style="background:#9B2C2C;color:#fff;padding:6px 10px;font-size:12px">${t().cancelEvent}</button>
+    </div>` : (paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline mb-4" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : "")}
+    ${e.status === "cancelled" && e.cancelReason ? `<p class="text-xs mb-3" style="color:#8a8578">${t().cancelReason}: ${esc(e.cancelReason)}</p>` : ""}
+
+    <div class="mb-4">
+      <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().payHistory}</h4>
+      ${pays.length ? `<ul class="flex flex-col gap-1.5">${pays.map(p => `
+        <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+          <span>${p.type === "advance" ? t().advance : p.type === "due" ? t().dueCollection : t().refund} · ${esc(p.paidDate || "")}</span>
+          <span style="${p.type === "refund" ? "color:#9B2C2C;font-weight:600" : "font-weight:600"}">${p.type === "refund" ? "-" : ""}৳${Number(p.amount).toLocaleString()}</span>
+        </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+    </div>
+    ${exps.length ? `<div>
+      <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().eventExpenseHistory}</h4>
+      <ul class="flex flex-col gap-1.5">${exps.map(x => `
+        <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+          <span>${x.type === "boyWage" ? t().boyWage : x.type === "labourWage" ? t().labourWage : t().otherExpense} ${x.details ? "· " + esc(x.details) : ""}</span>
+          <span class="font-medium">৳${Number(x.amount).toLocaleString()}</span>
+        </li>`).join("")}</ul>
+    </div>` : ""}`;
+
+  const b1 = box.querySelector("#btnAdvance"); if (b1) b1.addEventListener("click", () => openEventPaymentModal(e, "advance"));
+  const b2 = box.querySelector("#btnDue"); if (b2) b2.addEventListener("click", () => openEventPaymentModal(e, "due"));
+  const b3 = box.querySelector("#btnRefund"); if (b3) b3.addEventListener("click", () => openEventPaymentModal(e, "refund", paid - refunded));
+  const b4 = box.querySelector("#btnExp"); if (b4) b4.addEventListener("click", () => openEventExpenseModal(e));
+  const b5 = box.querySelector("#btnCancelEvent"); if (b5) b5.addEventListener("click", () => openCancelEventModal(e));
+}
+
+function openEventPaymentModal(ev, type, max) {
+  const label = type === "advance" ? t().advance : type === "due" ? t().dueCollection : t().refund;
+  openModal(label, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="payAmount" type="number" class="inp" ${max != null ? `max="${max}"` : ""} />
+      </label>
+      ${max != null ? `<p class="text-xs" style="color:#8a8578">Max: ৳${max.toLocaleString()}</p>` : ""}
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const amount = Number(wrap.querySelector("#payAmount").value) || 0;
+      if (!amount) return;
+      await addDoc(collection(db, "eventPayments"), { eventId: ev.id, type, amount, paidDate: todayISO(), createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+
+function openEventExpenseModal(ev) {
+  openModal(t().eventExpenseHistory, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().eventExpenseType}</span>
+        <select id="expType" class="inp">
+          <option value="boyWage">${t().boyWage}</option>
+          <option value="labourWage">${t().labourWage}</option>
+          <option value="other">${t().otherExpense}</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="expAmount" type="number" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().details}</span>
+        <input id="expDetails" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const amount = Number(wrap.querySelector("#expAmount").value) || 0;
+      if (!amount) return;
+      await addDoc(collection(db, "eventExpenses"), {
+        eventId: ev.id, type: wrap.querySelector("#expType").value,
+        amount, details: wrap.querySelector("#expDetails").value.trim(), createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openCancelEventModal(ev) {
+  openModal(t().cancelEvent, `
+    <div class="flex flex-col gap-4">
+      <p class="text-sm" style="color:#6B6659">${t().confirmCancel}</p>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().cancelReason}</span>
+        <input id="cxReason" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="confirmBtn" class="btn" style="background:#9B2C2C;color:#fff">${t().cancelEvent}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#confirmBtn").addEventListener("click", async () => {
+      await updateDoc(doc(db, "events", ev.id), {
+        status: "cancelled", cancelReason: wrap.querySelector("#cxReason").value.trim(), cancelledAt: todayISO(),
+      });
+      wrap.remove();
+    });
+  });
+}
 
 let allUsers = [];
 let unsubUsers = null;

@@ -7,22 +7,28 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: ui-sans-serif, system-ui, sans-serif; background:#F7F5F0; color:#26261F; }
-  .badge { border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; }
+  .badge { border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; display:inline-block; }
   .badge-gray{ background:#F1EEE5; color:#6B6659; }
   .badge-green{ background:#E7F0EA; color:#1B4332; }
   .badge-gold{ background:#F5EBDF; color:#8a6a3f; }
+  .badge-red{ background:#F6E5E5; color:#9B2C2C; }
   .card { border:1px solid #E4DFD3; background:#fff; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
   .btn { display:inline-flex; align-items:center; gap:6px; border-radius:12px; font-weight:500; padding:8px 14px; font-size:14px; transition:.15s; }
   .btn:active{ transform:scale(.98); }
   .btn-primary{ background:#1B4332; color:#fff; } .btn-primary:hover{ background:#143427; }
   .btn-ghost{ background:#F1EEE5; color:#1B4332; } .btn-ghost:hover{ background:#e7e2d3; }
   .btn-outline{ border:1px solid #D8D2C2; color:#3A3A34; } .btn-outline:hover{ background:#F7F5F0; }
+  .btn-danger{ background:#9B2C2C; color:#fff; } .btn-danger:hover{ background:#7f2323; }
+  .btn-gold{ background:#B08968; color:#fff; } .btn-gold:hover{ background:#9a7455; }
   .inp { border:1px solid #D8D2C2; background:#FCFBF8; border-radius:8px; padding:8px 12px; font-size:14px; outline:none; width:100%; }
   .inp:focus{ border-color:#1B4332; box-shadow:0 0 0 1px #1B4332; }
+  .inp-err{ border-color:#9B2C2C !important; box-shadow:0 0 0 1px #9B2C2C !important; }
   .tab-btn{ position:relative; display:flex; align-items:center; gap:6px; white-space:nowrap; border-radius:8px; padding:6px 12px; font-size:14px; font-weight:500; color:#6B6659; }
   .tab-btn:hover{ background:#F1EEE5; color:#1B4332; }
   .tab-btn.active{ color:#1B4332; }
   .tab-btn.active::after{ content:""; position:absolute; bottom:-10px; left:50%; transform:translateX(-50%); width:28px; height:4px; border-radius:9999px; background:#1B4332; }
+  .chip{ border-radius:8px; padding:6px 12px; font-size:13px; font-weight:500; border:1px solid #D8D2C2; background:#fff; color:#6B6659; cursor:pointer; }
+  .chip.active{ background:#1B4332; color:#fff; border-color:#1B4332; }
   .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
   .modal-box{ width:100%; max-width:480px; max-height:92vh; overflow-y:auto; background:#fff; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.15); }
 </style>
@@ -40,10 +46,9 @@ import {
   EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, onSnapshot, addDoc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp
+  getFirestore, collection, doc, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Firebase project: as-family-business (Spark/free plan — no Storage used)
 const firebaseConfig = {
   apiKey: "AIzaSyDTK-JTPA9JoBlS6r5JKO2gIkkoThrCZkA",
   authDomain: "as-family-business.firebaseapp.com",
@@ -62,16 +67,16 @@ const db = getFirestore(app);
 const STR = {
   en: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "Dashboard", adminPanel: "Admin Panel", shopHouse: "Shop & House", events: "Events", reports: "Reports",
+    dashboard: "Dashboard", adminPanel: "Admin Panel", dataEntry: "Data Entry", reports: "Reports",
     admin_r: "Admin", user_r: "User",
     addUnit: "Add Unit", editUnit: "Edit Unit", unitName: "Unit name",
     addSubUnit: "Add Sub Unit", editSubUnit: "Edit Sub Unit", subUnitName: "Sub unit name",
     billingType: "Billing Type", hourly: "Hourly Rent", daily: "Daily Rent", monthly: "Monthly Rent", perEvent: "Per Event Rent",
-    save: "Save", cancel: "Cancel", edit: "Edit", login: "Log in", email: "Email", password: "Password",
+    save: "Save", cancel: "Cancel", edit: "Edit", delete: "Delete", login: "Log in", email: "Email", password: "Password",
     loading: "Loading…", noProfile: "Your account has no role assigned yet. Ask the Admin to set it up.",
     comingSoon: "This section is coming in the next build phase.",
     loginError: "Login failed. Check your email and password.",
-    units: "Units",
+    units: "Units", address: "Address",
     accountDisabled: "Your account has been deactivated. Contact the Admin.",
     settings: "Settings", language: "Language", changePassword: "Change Password",
     currentPassword: "Current Password", newPassword: "New Password", confirmPassword: "Confirm New Password",
@@ -91,9 +96,9 @@ const STR = {
     dashboardSummary: "Overview", upcomingEvent: "Upcoming Event", pendingEvents: "Pending Events",
     shopUncollected: "Shop Rent Due", houseUncollected: "House Rent Due", none: "None",
     profiles: "Profiles", addProfile: "Add Profile", phone: "Phone", rentAmount: "Rent Amount (৳)",
-    collectRent: "Collect Rent", paid: "Paid", due: "Due",
+    collectRent: "Collect Rent", paid: "Paid", due: "Due", dueFor: "Due for",
     addExpense: "Add Expense", expenseCategory: "Category", amountLabel: "Amount (৳)", details: "Details",
-    addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a sub unit",
+    addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a Sub Unit",
     noData: "Nothing here yet.", period: "This period",
     quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.",
     customerName: "Customer Name", eventType: "Event Type", addType: "Add Type",
@@ -101,24 +106,36 @@ const STR = {
     tableQty: "Table Qty (Lunch)", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
     advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
     balance: "Balance", collected: "Collected", status: "Status",
-    pendingStatus: "Pending", completedStatus: "Completed", cancelledStatus: "Cancelled",
+    pendingStatus: "Pending", doneStatus: "Done", cancelledStatus: "Cancelled",
     cancelEvent: "Cancel Event", cancelReason: "Reason for cancellation",
     boyWage: "Boy Wage", labourWage: "Labour Wage", otherExpense: "Other", eventExpenseType: "Expense Type",
     payHistory: "Payment History", eventExpenseHistory: "Event Expenses",
     confirmCancel: "This will mark the event as cancelled.",
+    selectUnit: "Select a Unit", noAccessMsg: "You don't have access to any Unit/Sub Unit yet. Ask the Admin.",
+    duplicateMemo: "This Memo No. is already used in this Sub Unit. Please use a different one.",
+    fillAllFields: "Please fill in all required fields.",
+    passwordConfirmTitle: "Confirm Password", passwordConfirmHint: "Enter your password to confirm this action.",
+    confirm: "Confirm", wrongPassword: "Incorrect password.",
+    confirmDelete: "This will permanently delete this item. Continue?",
+    expenseCategories: "Expense Categories", eventTypesMgmt: "Event Types",
+    approvalPending: "Approval Pending", approve: "Approve", reject: "Reject", requestedBy: "Requested by",
+    noRequests: "No pending requests.", approvalPendingBadge: "Approval Pending",
+    totalCollected: "Total Collected", totalExpense: "Total Expense", transactions: "Transactions",
+    tenantProfile: "Profile", editProfile: "Edit Profile", editEvent: "Edit Event",
+    changes: "Changes",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", shopHouse: "দোকান ও বাসা", events: "ইভেন্ট", reports: "রিপোর্ট",
+    dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", dataEntry: "ডেটা এন্ট্রি", reports: "রিপোর্ট",
     admin_r: "অ্যাডমিন", user_r: "ইউজার",
     addUnit: "ইউনিট যোগ করুন", editUnit: "ইউনিট এডিট করুন", unitName: "ইউনিটের নাম",
     addSubUnit: "সাব ইউনিট যোগ করুন", editSubUnit: "সাব ইউনিট এডিট করুন", subUnitName: "সাব ইউনিটের নাম",
     billingType: "বিলিং ধরন", hourly: "ঘণ্টাভিত্তিক ভাড়া", daily: "দৈনিক ভাড়া", monthly: "মাসিক ভাড়া", perEvent: "প্রতি ইভেন্ট ভাড়া",
-    save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", edit: "এডিট", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
+    save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", edit: "এডিট", delete: "ডিলিট", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
     loading: "লোড হচ্ছে…", noProfile: "তোমার অ্যাকাউন্টে এখনো কোনো role সেট করা হয়নি। Admin-কে বলো সেট করে দিতে।",
     comingSoon: "এই অংশ পরের ধাপে যোগ হবে।",
     loginError: "লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
-    units: "ইউনিট",
+    units: "ইউনিট", address: "ঠিকানা",
     accountDisabled: "তোমার অ্যাকাউন্ট নিষ্ক্রিয় করা হয়েছে। Admin-এর সাথে যোগাযোগ করো।",
     settings: "সেটিংস", language: "ভাষা", changePassword: "পাসওয়ার্ড পরিবর্তন",
     currentPassword: "বর্তমান পাসওয়ার্ড", newPassword: "নতুন পাসওয়ার্ড", confirmPassword: "নতুন পাসওয়ার্ড আবার লিখুন",
@@ -138,7 +155,7 @@ const STR = {
     dashboardSummary: "সারসংক্ষেপ", upcomingEvent: "আসন্ন ইভেন্ট", pendingEvents: "পেন্ডিং ইভেন্ট",
     shopUncollected: "দোকানের বাকি ভাড়া", houseUncollected: "বাসার বাকি ভাড়া", none: "নেই",
     profiles: "প্রোফাইল", addProfile: "প্রোফাইল যোগ করুন", phone: "ফোন নম্বর", rentAmount: "ভাড়া (৳)",
-    collectRent: "ভাড়া আদায়", paid: "আদায় হয়েছে", due: "বাকি",
+    collectRent: "ভাড়া আদায়", paid: "আদায় হয়েছে", due: "বাকি", dueFor: "বাকি মাস:",
     addExpense: "খরচ যোগ করুন", expenseCategory: "খাত", amountLabel: "পরিমাণ (৳)", details: "বিবরণ",
     addCategory: "খাত যোগ করুন", newCategoryName: "নতুন খাতের নাম", selectSubUnit: "একটি সাব ইউনিট বাছাই করুন",
     noData: "এখনো কিছু যোগ করা হয়নি।", period: "এই মেয়াদে",
@@ -148,32 +165,32 @@ const STR = {
     tableQty: "টেবিল সংখ্যা (লাঞ্চ)", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
     advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
     balance: "বাকি আছে", collected: "আদায়কৃত", status: "অবস্থা",
-    pendingStatus: "পেন্ডিং", completedStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
+    pendingStatus: "পেন্ডিং", doneStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
     cancelEvent: "ইভেন্ট বাতিল করুন", cancelReason: "বাতিলের কারণ",
     boyWage: "বয় মজুরি", labourWage: "শ্রমিক মজুরি", otherExpense: "অন্যান্য", eventExpenseType: "খরচের ধরন",
     payHistory: "পেমেন্টের ইতিহাস", eventExpenseHistory: "ইভেন্টের খরচ",
     confirmCancel: "এতে ইভেন্টটি বাতিল হিসেবে চিহ্নিত হবে।",
+    selectUnit: "একটি ইউনিট বাছাই করুন", noAccessMsg: "তোমার এখনো কোনো Unit/Sub Unit-এ অ্যাক্সেস নেই। Admin-কে বলো।",
+    duplicateMemo: "এই মেমো নং এই সাব ইউনিটে আগে থেকেই ব্যবহৃত হয়েছে। অন্য একটা দাও।",
+    fillAllFields: "সব আবশ্যক ঘর পূরণ করো।",
+    passwordConfirmTitle: "পাসওয়ার্ড নিশ্চিত করো", passwordConfirmHint: "এই কাজটি নিশ্চিত করতে তোমার পাসওয়ার্ড দাও।",
+    confirm: "নিশ্চিত করো", wrongPassword: "পাসওয়ার্ড ভুল।",
+    confirmDelete: "এতে এই আইটেমটা স্থায়ীভাবে মুছে যাবে। এগোবেন?",
+    expenseCategories: "খরচের খাত", eventTypesMgmt: "ইভেন্ট টাইপ",
+    approvalPending: "অনুমোদনের অপেক্ষায়", approve: "অনুমোদন করো", reject: "প্রত্যাখ্যান করো", requestedBy: "অনুরোধ করেছে",
+    noRequests: "কোনো পেন্ডিং অনুরোধ নেই।", approvalPendingBadge: "অনুমোদনের অপেক্ষায়",
+    totalCollected: "মোট আদায়", totalExpense: "মোট খরচ", transactions: "লেনদেন",
+    tenantProfile: "প্রোফাইল", editProfile: "প্রোফাইল এডিট করুন", editEvent: "ইভেন্ট এডিট করুন",
+    changes: "পরিবর্তন",
   },
 };
 
-let lang = "en";
-let tab = "dashboard";
-let currentUser = null;
-let profile = null; // undefined-state handled via booleans below
-let authChecked = false;
-let profileChecked = false;
-let units = [];
-let subUnits = [];
-let unsubUnits = null, unsubSubUnits = null;
-let globalSettings = { hijriOffsetDays: 0 };
-let unsubGlobalSettings = null;
-
-const root = document.getElementById("root");
-const t = () => STR[lang];
 const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])));
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
 // ---------------------------------------------------------------------------
-// Local display settings (per-device): language handled via `lang`, plus date-bar toggles
+// Local display settings (per-device)
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = "asfb_settings";
 function loadSettings() {
@@ -187,24 +204,21 @@ function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s))
 let dispSettings = loadSettings();
 
 // ---------------------------------------------------------------------------
-// Date bar: weekday │ WK-N │ Gregorian │ Bangla │ Hijri
+// Date bar
 // ---------------------------------------------------------------------------
 const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const GREG_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const GREG_MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const BANGLA_MONTHS = ["Boishakh","Jestha","Ashar","Shrabon","Bhadro","Ashwin","Kartik","Ogrohayon","Poush","Magh","Falgun","Choitro"];
 const HIJRI_MONTHS = ["Muharram","Safar","Rabiul Awal","Rabius Sani","Jamadal Awal","Jamadas Sani","Rajab","Shaban","Ramadan","Shawwal","Zilqad","Zilhajj"];
 
-function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
-function todayISO() { return new Date().toISOString().slice(0, 10); }
 function isGregLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
-
 function weekNumberSunday(date) {
   const d = atMidnight(date);
   const start = new Date(d.getFullYear(), 0, 1);
   const diffDays = Math.round((d - start) / 86400000);
   return Math.ceil((diffDays + start.getDay() + 1) / 7);
 }
-
 function getBanglaDate(date) {
   const d = atMidnight(date);
   const y = d.getFullYear();
@@ -222,7 +236,6 @@ function getBanglaDate(date) {
   }
   return { day: remaining, month: BANGLA_MONTHS[mIdx], year: bYear };
 }
-
 function getHijriDate(date) {
   try {
     const offset = globalSettings.hijriOffsetDays || 0;
@@ -235,7 +248,6 @@ function getHijriDate(date) {
     return { day, month: HIJRI_MONTHS[month - 1], year };
   } catch { return null; }
 }
-
 function dateBarHtml() {
   const now = new Date();
   const parts = [];
@@ -248,6 +260,9 @@ function dateBarHtml() {
   return `<div class="mx-auto max-w-5xl px-4 pb-2 text-xs" style="color:#8a8578">${parts.map(esc).join(" &nbsp;│&nbsp; ")}</div>`;
 }
 
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
 const icons = {
   building: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1"/></svg>`,
   dashboard: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
@@ -261,9 +276,35 @@ const icons = {
   shield: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B08968" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
   gear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   pencil: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  trash: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
   sliders: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`,
   users: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  bell: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
+  check: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>`,
 };
+
+// ---------------------------------------------------------------------------
+// Global state
+// ---------------------------------------------------------------------------
+let lang = "en";
+let tab = "dashboard";
+let currentUser = null;
+let profile = null;
+let authChecked = false;
+let profileChecked = false;
+
+let units = [], subUnits = [];
+let globalSettings = { hijriOffsetDays: 0 };
+let allUsers = [];
+let expenseCategories = [], eventTypes = [];
+let tenants = [], rentPayments = [], expenses = [];
+let events = [], eventPayments = [], eventExpenses = [];
+let approvalRequests = [];
+
+let unsubs = [];
+
+const root = document.getElementById("root");
+const t = () => STR[lang];
 
 function render() {
   if (!authChecked || (currentUser && !profileChecked)) {
@@ -341,19 +382,116 @@ function renderDisabled() {
   document.getElementById("logoutBtn3").addEventListener("click", () => signOut(auth));
 }
 
+// ---------------------------------------------------------------------------
+// Permissions
+// ---------------------------------------------------------------------------
+function isAdmin() { return !!(profile && profile.role === "admin"); }
+function permFor(subUnitId) {
+  if (isAdmin()) return { view: true, add: true, edit: true };
+  const p = (profile && profile.permissions && profile.permissions[subUnitId]) || {};
+  return { view: !!p.view, add: !!p.add, edit: !!p.edit };
+}
+function canView(subUnitId) { const p = permFor(subUnitId); return p.view || p.add || p.edit; }
+function canAdd(subUnitId) { return permFor(subUnitId).add; }
+function canEdit(subUnitId) { return permFor(subUnitId).edit; }
+function accessibleUnits() {
+  if (isAdmin()) return units;
+  const okSubUnitIds = new Set(subUnits.filter(s => canView(s.id)).map(s => s.id));
+  return units.filter(u => subUnits.some(s => s.unitId === u.id && okSubUnitIds.has(s.id)));
+}
+function accessibleSubUnitsOf(unitId) {
+  const list = subUnits.filter(s => s.unitId === unitId);
+  return isAdmin() ? list : list.filter(s => canView(s.id));
+}
+
+// ---------------------------------------------------------------------------
+// Approval workflow
+// ---------------------------------------------------------------------------
+async function performEdit(targetCollection, targetId, changes, subUnitId) {
+  if (isAdmin()) {
+    await updateDoc(doc(db, targetCollection, targetId), changes);
+    return "applied";
+  }
+  await addDoc(collection(db, "approvalRequests"), {
+    targetCollection, targetId, changes, subUnitId,
+    requestedBy: currentUser.uid, requestedByName: profile.name || currentUser.email,
+    status: "pending", createdAt: serverTimestamp(),
+  });
+  return "pending";
+}
+function pendingApprovalFor(targetId) {
+  return approvalRequests.find(r => r.targetId === targetId && r.status === "pending");
+}
+
+// ---------------------------------------------------------------------------
+// Password confirmation (for Admin edit/delete of settings)
+// ---------------------------------------------------------------------------
+function withPasswordConfirm(onConfirmed) {
+  openModal(t().passwordConfirmTitle, `
+    <div class="flex flex-col gap-4">
+      <p class="text-sm" style="color:#6B6659">${t().passwordConfirmHint}</p>
+      <input id="pcPassword" type="password" class="inp" />
+      <div id="pcErr" class="text-xs" style="color:#9B2C2C"></div>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="confirmBtn" class="btn btn-primary">${t().confirm}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#confirmBtn").addEventListener("click", async () => {
+      const pw = wrap.querySelector("#pcPassword").value;
+      const errBox = wrap.querySelector("#pcErr");
+      try {
+        const cred = EmailAuthProvider.credential(currentUser.email, pw);
+        await reauthenticateWithCredential(currentUser, cred);
+        wrap.remove();
+        await onConfirmed();
+      } catch (e) {
+        errBox.textContent = t().wrongPassword;
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Modal helper
+// ---------------------------------------------------------------------------
+function openModal(title, bodyHtml, onMount) {
+  const wrap = document.createElement("div");
+  wrap.className = "modal-backdrop";
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <div class="sticky top-0 flex items-center justify-between border-b bg-white px-5 py-3.5" style="border-color:#EEEAE0">
+        <h3 class="font-semibold" style="color:#1B4332">${esc(title)}</h3>
+        <button id="modalClose" style="color:#8a8578">${icons.x}</button>
+      </div>
+      <div class="p-5">${bodyHtml}</div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+  wrap.querySelector("#modalClose").addEventListener("click", () => wrap.remove());
+  onMount(wrap);
+  return wrap;
+}
+function markInvalid(el) { el.classList.add("inp-err"); }
+function clearInvalid(el) { el.classList.remove("inp-err"); }
+
+// ---------------------------------------------------------------------------
+// TABS + App shell
+// ---------------------------------------------------------------------------
 const TABS = [
   { key: "dashboard", icon: "dashboard" },
-  { key: "shopHouse", icon: "store" },
-  { key: "events", icon: "party" },
+  { key: "dataEntry", icon: "store" },
   { key: "reports", icon: "report" },
   { key: "adminPanel", icon: "gear", adminOnly: true },
 ];
 
 function renderApp() {
-  const isAdmin = profile.role === "admin";
-  const roleLabel = isAdmin ? t().admin_r : t().user_r;
-  const visibleTabs = TABS.filter(tb => !tb.adminOnly || isAdmin);
+  const admin = isAdmin();
+  const roleLabel = admin ? t().admin_r : t().user_r;
+  const visibleTabs = TABS.filter(tb => !tb.adminOnly || admin);
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
+  const pendingCount = admin ? approvalRequests.filter(r => r.status === "pending").length : 0;
 
   root.innerHTML = `
   <div class="min-h-screen">
@@ -374,6 +512,7 @@ function renderApp() {
         ${visibleTabs.map(tb => `
           <button data-tab="${tb.key}" class="tab-btn ${tab === tb.key ? "active" : ""}">
             ${icons[tb.icon]} ${esc(t()[tb.key])}
+            ${tb.key === "adminPanel" && pendingCount ? `<span class="badge badge-red" style="margin-left:2px">${pendingCount}</span>` : ""}
           </button>`).join("")}
       </div>
     </div>
@@ -383,10 +522,10 @@ function renderApp() {
   document.getElementById("settingsBtn").addEventListener("click", openSettingsModal);
   document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
   document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
-    tab = b.getAttribute("data-tab"); renderTabContent(isAdmin);
+    tab = b.getAttribute("data-tab"); renderTabContent();
   }));
 
-  renderTabContent(isAdmin);
+  renderTabContent();
 }
 
 function comingSoonHtml(label) {
@@ -396,117 +535,148 @@ function comingSoonHtml(label) {
   </div>`;
 }
 
-function renderTabContent(isAdmin) {
+function renderTabContent() {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const el = document.getElementById("tabContent");
-  if (tab === "adminPanel" && isAdmin) { renderAdminPanel(el); return; }
+  if (tab === "adminPanel" && isAdmin()) { renderAdminPanel(el); return; }
   if (tab === "dashboard") { renderDashboard(el); return; }
-  if (tab === "shopHouse") { renderShopHouseTab(el, isAdmin); return; }
-  if (tab === "events") { renderEventsTab(el, isAdmin); return; }
+  if (tab === "dataEntry") { renderDataEntry(el); return; }
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard summary (live-wired; will populate once Shop&House/Events modules exist)
+// Settings modal
 // ---------------------------------------------------------------------------
-let dashEvents = [], dashTenants = [], dashRentPayments = [];
-let expenses = [], expenseCategories = [];
-let eventTypes = [], eventPayments = [], eventExpenses = [];
-let unsubDashEvents = null, unsubDashTenants = null, unsubDashRentPayments = null;
-let unsubExpenses = null, unsubExpenseCategories = null;
-let unsubEventTypes = null, unsubEventPayments = null, unsubEventExpenses = null;
-
-function startDashboardListeners() {
-  if (unsubDashEvents) return;
-  unsubDashEvents = onSnapshot(collection(db, "events"), (snap) => {
-    dashEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "dashboard") paintDashboardCard();
-    if (tab === "events") paintEventsTab();
-  });
-  unsubDashTenants = onSnapshot(collection(db, "tenants"), (snap) => {
-    dashTenants = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "dashboard") paintDashboardCard();
-    if (tab === "shopHouse") paintShopHouseTab();
-  });
-  unsubDashRentPayments = onSnapshot(collection(db, "rentPayments"), (snap) => {
-    dashRentPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "dashboard") paintDashboardCard();
-    if (tab === "shopHouse") paintShopHouseTab();
-  });
-  unsubExpenses = onSnapshot(collection(db, "expenses"), (snap) => {
-    expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "shopHouse") paintShopHouseTab();
-  });
-  unsubExpenseCategories = onSnapshot(collection(db, "expenseCategories"), (snap) => {
-    expenseCategories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "shopHouse") paintShopHouseTab();
-  });
-  unsubEventTypes = onSnapshot(collection(db, "eventTypes"), (snap) => {
-    eventTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  });
-  unsubEventPayments = onSnapshot(collection(db, "eventPayments"), (snap) => {
-    eventPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "events") paintEventsTab();
-    refreshOpenEventDetail();
-  });
-  unsubEventExpenses = onSnapshot(collection(db, "eventExpenses"), (snap) => {
-    eventExpenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    refreshOpenEventDetail();
+function openSettingsModal() {
+  const s = dispSettings;
+  openModal(t().settings, `
+    <div class="flex flex-col gap-6">
+      <div>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().language}</span>
+          <select id="langSelect" class="inp">
+            <option value="en" ${lang === "en" ? "selected" : ""}>English</option>
+            <option value="bn" ${lang === "bn" ? "selected" : ""}>বাংলা</option>
+          </select>
+        </label>
+      </div>
+      <div>
+        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().dateDisplay}</div>
+        <div class="flex flex-col gap-2">
+          ${["showWeekday","showWeek","showGregorian","showBangla","showHijri"].map(key => `
+            <label class="flex items-center justify-between text-sm rounded-lg px-3 py-2" style="background:#F7F5F0">
+              <span>${t()[key]}</span>
+              <input type="checkbox" data-dtoggle="${key}" ${s[key] ? "checked" : ""} />
+            </label>`).join("")}
+        </div>
+      </div>
+      <div>
+        <button id="pwToggleRow" type="button" class="w-full flex items-center justify-between text-sm font-medium rounded-lg px-3 py-2" style="background:#F7F5F0;color:#6B6659">
+          <span>${t().changePassword}</span>
+          <span id="pwChevron">▾</span>
+        </button>
+        <div id="pwBody" class="flex flex-col gap-3 mt-3" style="display:none">
+          <input id="curPass" type="password" placeholder="${t().currentPassword}" class="inp" />
+          <input id="newPass" type="password" placeholder="${t().newPassword}" class="inp" />
+          <input id="newPass2" type="password" placeholder="${t().confirmPassword}" class="inp" />
+          <div id="passMsg" class="text-xs"></div>
+          <button id="changePassBtn" class="btn btn-outline">${t().changePassword}</button>
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button id="closeBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#langSelect").addEventListener("change", (e) => { lang = e.target.value; wrap.remove(); render(); });
+    wrap.querySelectorAll("[data-dtoggle]").forEach(cb => cb.addEventListener("change", () => {
+      dispSettings[cb.getAttribute("data-dtoggle")] = cb.checked;
+      saveSettings(dispSettings);
+      const bar = document.getElementById("dateBar");
+      if (bar) bar.innerHTML = dateBarHtml();
+    }));
+    wrap.querySelector("#pwToggleRow").addEventListener("click", () => {
+      const body = wrap.querySelector("#pwBody");
+      const chevron = wrap.querySelector("#pwChevron");
+      const open = body.style.display !== "none";
+      body.style.display = open ? "none" : "flex";
+      chevron.textContent = open ? "▾" : "▴";
+    });
+    wrap.querySelector("#closeBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#changePassBtn").addEventListener("click", async () => {
+      const msg = wrap.querySelector("#passMsg");
+      const cur = wrap.querySelector("#curPass").value;
+      const n1 = wrap.querySelector("#newPass").value;
+      const n2 = wrap.querySelector("#newPass2").value;
+      if (n1 !== n2) { msg.style.color = "#9B2C2C"; msg.textContent = t().passwordMismatch; return; }
+      try {
+        const cred = EmailAuthProvider.credential(currentUser.email, cur);
+        await reauthenticateWithCredential(currentUser, cred);
+        await updatePassword(currentUser, n1);
+        msg.style.color = "#1B4332"; msg.textContent = t().passwordChanged;
+      } catch (e) {
+        msg.style.color = "#9B2C2C"; msg.textContent = t().passwordError;
+      }
+    });
   });
 }
-function stopDashboardListeners() {
-  if (unsubDashEvents) { unsubDashEvents(); unsubDashEvents = null; }
-  if (unsubDashTenants) { unsubDashTenants(); unsubDashTenants = null; }
-  if (unsubDashRentPayments) { unsubDashRentPayments(); unsubDashRentPayments = null; }
-  if (unsubExpenses) { unsubExpenses(); unsubExpenses = null; }
-  if (unsubExpenseCategories) { unsubExpenseCategories(); unsubExpenseCategories = null; }
-  if (unsubEventTypes) { unsubEventTypes(); unsubEventTypes = null; }
-  if (unsubEventPayments) { unsubEventPayments(); unsubEventPayments = null; }
-  if (unsubEventExpenses) { unsubEventExpenses(); unsubEventExpenses = null; }
-  dashEvents = []; dashTenants = []; dashRentPayments = []; expenses = []; expenseCategories = [];
-  eventTypes = []; eventPayments = []; eventExpenses = [];
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+function eventBalance(ev) {
+  const pays = eventPayments.filter(p => p.eventId === ev.id);
+  const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
+  const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
+  return (ev.totalRentAmount || 0) - paid + refunded;
+}
+function eventPriority(ev) {
+  if (ev.status === "cancelled") return 2;
+  return eventBalance(ev) > 0 ? 0 : 1;
+}
+function sortedEvents(list) {
+  return [...list].sort((a, b) => {
+    const pa = eventPriority(a), pb = eventPriority(b);
+    if (pa !== pb) return pa - pb;
+    return (a.eventDate || "") < (b.eventDate || "") ? -1 : 1;
+  });
 }
 
 function computeDashboardStats() {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const pending = dashEvents.filter(e => e.status === "pending");
+  const todayStr = todayISO();
+  const pending = events.filter(e => e.status !== "cancelled" && eventBalance(e) > 0);
   const upcoming = pending.filter(e => e.eventDate >= todayStr).sort((a, b) => (a.eventDate > b.eventDate ? 1 : -1))[0];
-
   const now = new Date();
   const month = now.getMonth() + 1, year = now.getFullYear();
-  const paidTenantIds = new Set(dashRentPayments.filter(p => p.month === month && p.year === year).map(p => p.tenantId));
-
+  const paidTenantIds = new Set(rentPayments.filter(p => p.month === month && p.year === year).map(p => p.tenantId));
   const subUnitById = Object.fromEntries(subUnits.map(s => [s.id, s]));
   let shopDue = 0, houseDue = 0;
-  dashTenants.forEach(tn => {
-    if (tn.active === false) return;
-    if (paidTenantIds.has(tn.id)) return;
-    const su = subUnitById[tn.subUnitId];
-    const name = (su?.name || "").toLowerCase();
+  tenants.forEach(tn => {
+    if (tn.active === false || paidTenantIds.has(tn.id)) return;
+    const name = (subUnitById[tn.subUnitId]?.name || "").toLowerCase();
     if (name.includes("shop")) shopDue++;
     else if (name.includes("house")) houseDue++;
   });
-
   return { upcomingDate: upcoming ? upcoming.eventDate : null, pendingCount: pending.length, shopDue, houseDue };
 }
 
 function renderDashboard(el) {
   el.innerHTML = `
-    <button id="quickBookBtn" class="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white shadow-sm mb-5" style="background:#B08968">
+    <button id="quickBookBtn" class="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white shadow-sm mb-5 btn-gold">
       ${icons.party} ${t().quickBookEvent}
     </button>
-    <div id="dashCard"></div>`;
+    <div id="dashCard" class="mb-6"></div>
+    <div id="dashPendingList"></div>`;
   document.getElementById("quickBookBtn").addEventListener("click", () => {
-    tab = "events";
-    renderTabContent(profile?.role === "admin");
-    const subs = eventSubUnits();
-    if (subs.length) { activeEventSub = subs[0].id; openBookEventModal(activeEventSub); }
+    const subs = subUnits.filter(s => s.billingType === "perEvent" && canAdd(s.id));
+    if (!subs.length) return;
+    openBookEventModal(subs[0].id);
   });
   paintDashboardCard();
 }
 
 function paintDashboardCard() {
   const box = document.getElementById("dashCard");
+  const listBox = document.getElementById("dashPendingList");
   if (!box) return;
   const s = computeDashboardStats();
   box.innerHTML = `
@@ -531,43 +701,21 @@ function paintDashboardCard() {
         </div>
       </div>
     </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Shop & House module: per Sub Unit (billingType != perEvent) tenant/profile
-// list, rent collection, and expense tracking
-// ---------------------------------------------------------------------------
-let activeShopSub = null;
-
-function shopHouseSubUnits() { return subUnits.filter(s => s.billingType !== "perEvent"); }
-
-function periodLabel(su) {
-  const now = new Date();
-  if (su && su.billingType === "daily") return todayISO();
-  if (su && su.billingType === "hourly") return todayISO();
-  return `${now.getMonth() + 1}-${now.getFullYear()}`;
-}
-function tenantPaidThisPeriod(tenant) {
-  const now = new Date();
-  const month = now.getMonth() + 1, year = now.getFullYear();
-  return dashRentPayments.some(p => p.tenantId === tenant.id && p.month === month && p.year === year);
-}
-
-function renderShopHouseTab(el, isAdmin) {
-  const subs = shopHouseSubUnits();
-  if (!activeShopSub && subs.length) activeShopSub = subs[0].id;
-  el.innerHTML = `
-    <div class="flex flex-wrap gap-1.5 mb-5">
-      ${subs.map(s => `
-        <button data-shopsub="${s.id}" class="tab-btn" style="border-radius:8px;background:${s.id === activeShopSub ? "#1B4332" : "#fff"};color:${s.id === activeShopSub ? "#fff" : "#6B6659"};border:1px solid #D8D2C2">
-          ${esc(unitSubLabel(s.id))}
-        </button>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`}
-    </div>
-    <div id="shopHouseBody"></div>`;
-  el.querySelectorAll("[data-shopsub]").forEach(b => b.addEventListener("click", () => {
-    activeShopSub = b.getAttribute("data-shopsub"); renderShopHouseTab(el, isAdmin);
-  }));
-  paintShopHouseTab(isAdmin);
+  if (!listBox) return;
+  const pendingList = sortedEvents(events.filter(e => e.status !== "cancelled" && eventBalance(e) > 0));
+  listBox.innerHTML = `
+    <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().pendingEvents}</h3>
+    <div class="flex flex-col gap-2">
+    ${pendingList.map(e => `
+      <div class="card p-3 flex items-center justify-between" data-openevent="${e.id}" style="cursor:pointer">
+        <div>
+          <div class="text-sm font-medium">${esc(e.customerName)} <span class="text-xs" style="color:#B08968">${esc(e.memoNo)}</span></div>
+          <div class="text-xs" style="color:#8a8578">${esc(unitSubLabel(e.subUnitId))} · ${esc(e.eventDate || "")}</div>
+        </div>
+        <span class="badge badge-gold">৳${Math.max(eventBalance(e),0).toLocaleString()}</span>
+      </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+    </div>`;
+  listBox.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
 }
 
 function unitSubLabel(subUnitId) {
@@ -576,87 +724,102 @@ function unitSubLabel(subUnitId) {
   return `${u?.name || "?"} / ${su?.name || "?"}`;
 }
 
-function paintShopHouseTab(isAdminArg) {
-  const body = document.getElementById("shopHouseBody");
-  if (!body) return;
-  const isAdmin = isAdminArg !== undefined ? isAdminArg : profile?.role === "admin";
-  const su = subUnits.find(s => s.id === activeShopSub);
-  if (!su) { body.innerHTML = `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`; return; }
-  const tenants = dashTenants.filter(tn => tn.subUnitId === activeShopSub);
-  const cats = expenseCategories.filter(c => c.subUnitId === activeShopSub);
-  const exps = expenses.filter(e => e.subUnitId === activeShopSub);
+// ---------------------------------------------------------------------------
+// Data Entry: Unit -> Sub Unit -> (Tenants or Events)
+// ---------------------------------------------------------------------------
+let deUnit = null, deSub = null;
 
-  body.innerHTML = `
-    <div class="card p-4 mb-6">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold" style="color:#1B4332">${t().profiles}</h3>
-        <button id="addTenantBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addProfile}</button>
+function renderDataEntry(el) {
+  const myUnits = accessibleUnits();
+  if (!myUnits.length) { el.innerHTML = `<p class="text-sm" style="color:#8a8578">${t().noAccessMsg}</p>`; return; }
+  if (!deUnit || !myUnits.some(u => u.id === deUnit)) deUnit = myUnits[0].id;
+  const mySubs = accessibleSubUnitsOf(deUnit);
+  if (!deSub || !mySubs.some(s => s.id === deSub)) deSub = mySubs[0]?.id || null;
+
+  el.innerHTML = `
+    <div class="mb-3">
+      <div class="text-xs font-medium mb-1.5" style="color:#8a8578">${t().selectUnit}</div>
+      <div class="flex flex-wrap gap-1.5">
+        ${myUnits.map(u => `<button data-deunit="${u.id}" class="chip ${u.id === deUnit ? "active" : ""}">${esc(u.name)}</button>`).join("")}
       </div>
-      <div id="tenantsList" class="flex flex-col gap-2"></div>
     </div>
-
-    <div class="card p-4">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold" style="color:#1B4332">${t().addExpense}</h3>
-        <button id="addExpenseBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>
+    <div class="mb-5">
+      <div class="text-xs font-medium mb-1.5" style="color:#8a8578">${t().selectSubUnit}</div>
+      <div class="flex flex-wrap gap-1.5">
+        ${mySubs.map(s => `<button data-desub="${s.id}" class="chip ${s.id === deSub ? "active" : ""}">${esc(s.name)}</button>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
       </div>
-      ${isAdmin ? `
-        <div class="flex flex-wrap items-center gap-1.5 mb-3">
-          ${cats.map(c => `<span class="badge badge-green">${esc(c.name)}</span>`).join("")}
-          <button id="addCatBtn" class="btn btn-outline" style="padding:3px 8px;font-size:11px">${icons.plus}${t().addCategory}</button>
-        </div>` : ""}
-      <div id="expensesList" class="flex flex-col gap-2"></div>
-    </div>`;
+    </div>
+    <div id="deBody"></div>`;
 
-  document.getElementById("tenantsList").innerHTML = tenants.map(tn => {
-    const paid = tenantPaidThisPeriod(tn);
+  el.querySelectorAll("[data-deunit]").forEach(b => b.addEventListener("click", () => {
+    deUnit = b.getAttribute("data-deunit"); deSub = null; renderDataEntry(el);
+  }));
+  el.querySelectorAll("[data-desub]").forEach(b => b.addEventListener("click", () => {
+    deSub = b.getAttribute("data-desub"); renderDataEntry(el);
+  }));
+
+  paintDataEntryBody();
+}
+
+function paintDataEntryBody() {
+  const body = document.getElementById("deBody");
+  if (!body) return;
+  if (!deSub) { body.innerHTML = `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`; return; }
+  const su = subUnits.find(s => s.id === deSub);
+  if (su && su.billingType === "perEvent") paintEventsBody(body, su);
+  else paintTenantsBody(body, su);
+}
+
+// --- Shop/House tenants ---
+function tenantPaidThisMonth(tenant) {
+  const now = new Date();
+  return rentPayments.some(p => p.tenantId === tenant.id && p.month === now.getMonth() + 1 && p.year === now.getFullYear());
+}
+function paintTenantsBody(body, su) {
+  const list = tenants.filter(tn => tn.subUnitId === deSub);
+  const add = canAdd(deSub);
+  body.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold" style="color:#1B4332">${t().profiles}</h3>
+      ${add ? `<button id="addTenantBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addProfile}</button>` : ""}
+    </div>
+    <div id="tenantsList" class="flex flex-col gap-2"></div>`;
+  const now = new Date();
+  document.getElementById("tenantsList").innerHTML = list.map(tn => {
+    const paid = tenantPaidThisMonth(tn);
     return `
-    <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0">
+    <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0;cursor:pointer" data-opentenant="${tn.id}">
       <div>
         <div class="text-sm font-medium">${esc(tn.name)}</div>
         <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="badge ${paid ? "badge-green" : "badge-gold"}">${paid ? t().paid : t().due} · ৳${Number(tn.rentAmount || 0).toLocaleString()}</span>
-        ${!paid ? `<button data-collect="${tn.id}" class="btn btn-primary" style="padding:4px 10px;font-size:12px">${t().collectRent}</button>` : ""}
-      </div>
+      <span class="badge ${paid ? "badge-green" : "badge-gold"}">${paid ? t().paid : `${t().due} · ${GREG_MONTHS_FULL[now.getMonth()]}`}</span>
     </div>`;
   }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
-
-  document.getElementById("expensesList").innerHTML = exps.map(ex => `
-    <div class="flex items-center justify-between rounded-xl px-3 py-2 text-sm" style="background:#F7F5F0">
-      <span>${esc(cats.find(c => c.id === ex.categoryId)?.name || "—")} ${ex.details ? "— " + esc(ex.details) : ""}</span>
-      <span class="font-medium">৳${Number(ex.amount || 0).toLocaleString()}</span>
-    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
-
-  document.getElementById("addTenantBtn").addEventListener("click", () => openAddTenantModal(activeShopSub));
-  document.getElementById("addExpenseBtn").addEventListener("click", () => openAddExpenseModal(activeShopSub, cats));
-  const catBtn = document.getElementById("addCatBtn");
-  if (catBtn) catBtn.addEventListener("click", () => openAddCategoryModal(activeShopSub));
-  body.querySelectorAll("[data-collect]").forEach(b => b.addEventListener("click", () => {
-    const tn = tenants.find(x => x.id === b.getAttribute("data-collect"));
-    if (tn) openCollectRentModal(tn);
-  }));
+  const addBtn = document.getElementById("addTenantBtn");
+  if (addBtn) addBtn.addEventListener("click", () => openTenantModal(deSub));
+  body.querySelectorAll("[data-opentenant]").forEach(row => row.addEventListener("click", () => openTenantDetailModal(row.getAttribute("data-opentenant"))));
 }
 
-function openAddTenantModal(subUnitId) {
-  openModal(t().addProfile, `
+function openTenantModal(subUnitId, existing) {
+  const isEdit = !!existing;
+  openModal(isEdit ? t().editProfile : t().addProfile, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().name}</span>
-        <input id="tnName" class="inp" />
+        <input id="tnName" class="inp" value="${esc(existing?.name || "")}" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().address}</span>
-        <input id="tnAddress" class="inp" />
+        <input id="tnAddress" class="inp" value="${esc(existing?.address || "")}" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().phone}</span>
-        <input id="tnPhone" class="inp" />
+        <input id="tnPhone" class="inp" value="${esc(existing?.phone || "")}" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().rentAmount}</span>
-        <input id="tnRent" type="number" class="inp" />
+        <input id="tnRent" type="number" class="inp" value="${existing?.rentAmount || ""}" />
       </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
@@ -667,16 +830,81 @@ function openAddTenantModal(subUnitId) {
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#tnName").value.trim();
       if (!name) return;
-      await addDoc(collection(db, "tenants"), {
-        subUnitId, name,
+      const data = {
+        name,
         address: wrap.querySelector("#tnAddress").value.trim(),
         phone: wrap.querySelector("#tnPhone").value.trim(),
         rentAmount: Number(wrap.querySelector("#tnRent").value) || 0,
-        active: true, createdAt: serverTimestamp(),
-      });
+      };
+      if (isEdit) {
+        await performEdit("tenants", existing.id, data, subUnitId);
+      } else {
+        await addDoc(collection(db, "tenants"), { subUnitId, ...data, active: true, createdAt: serverTimestamp() });
+      }
       wrap.remove();
     });
   });
+}
+
+function openTenantDetailModal(tenantId) {
+  const wrap = openModal("…", `<div id="tenantDetailBody"></div>`, () => {});
+  wrap.dataset.tenantModal = tenantId;
+  paintTenantDetailBody(tenantId);
+}
+
+function paintTenantDetailBody(tenantId) {
+  const box = document.getElementById("tenantDetailBody");
+  if (!box) return;
+  const tn = tenants.find(x => x.id === tenantId);
+  if (!tn) return;
+  box.closest(".modal-box").querySelector("h3").textContent = tn.name;
+  const add = canAdd(tn.subUnitId), edit = canEdit(tn.subUnitId);
+  const myPays = rentPayments.filter(p => p.tenantId === tenantId);
+  const myExps = expenses.filter(x => x.tenantId === tenantId);
+  const totalCollected = myPays.reduce((s, p) => s + p.amount, 0);
+  const totalExpense = myExps.reduce((s, x) => s + x.amount, 0);
+  const paid = tenantPaidThisMonth(tn);
+  const pendingReq = pendingApprovalFor(tenantId);
+  const txns = [
+    ...myPays.map(p => ({ date: p.paidDate, label: t().collectRent, amount: p.amount, positive: true })),
+    ...myExps.map(x => ({ date: x.date, label: (expenseCategories.find(c => c.id === x.categoryId)?.name || "—") + (x.details ? " · " + x.details : ""), amount: -x.amount, positive: false })),
+  ].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  box.innerHTML = `
+    ${pendingReq ? `<div class="badge badge-gold mb-3">${t().approvalPendingBadge}</div>` : ""}
+    <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+      <div><span style="color:#8a8578">${t().phone}: </span>${esc(tn.phone || "—")}</div>
+      <div><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()}</div>
+      <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(tn.address || "—")}</div>
+    </div>
+    ${edit ? `<button id="tnEditBtn" class="btn btn-outline mb-4" style="padding:5px 10px;font-size:12px">${icons.pencil}${t().editProfile}</button>` : ""}
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalCollected}</div>
+        <div class="text-base font-semibold" style="color:#1B4332">৳${totalCollected.toLocaleString()}</div>
+      </div>
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalExpense}</div>
+        <div class="text-base font-semibold" style="color:#1B4332">৳${totalExpense.toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2 mb-4">
+      ${add && !paid ? `<button id="tnCollectBtn" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
+      ${add ? `<button id="tnExpBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>` : ""}
+    </div>
+    <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().transactions}</h4>
+    ${txns.length ? `<ul class="flex flex-col gap-1.5">${txns.map(x => `
+      <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+        <span>${esc(x.label)} · ${esc(x.date || "")}</span>
+        <span style="font-weight:600;color:${x.positive ? "#1B4332" : "#9B2C2C"}">${x.positive ? "" : "-"}৳${Math.abs(x.amount).toLocaleString()}</span>
+      </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}`;
+
+  const editBtn = box.querySelector("#tnEditBtn");
+  if (editBtn) editBtn.addEventListener("click", () => openTenantModal(tn.subUnitId, tn));
+  const collectBtn = box.querySelector("#tnCollectBtn");
+  if (collectBtn) collectBtn.addEventListener("click", () => openCollectRentModal(tn));
+  const expBtn = box.querySelector("#tnExpBtn");
+  if (expBtn) expBtn.addEventListener("click", () => openTenantExpenseModal(tn));
 }
 
 function openCollectRentModal(tenant) {
@@ -695,7 +923,7 @@ function openCollectRentModal(tenant) {
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const now = new Date();
       await addDoc(collection(db, "rentPayments"), {
-        tenantId: tenant.id, subUnitId: tenant.subUnitId,
+        tenantId: tenant.id, subUnitId: tenant.subUnitId, tenantName: tenant.name,
         month: now.getMonth() + 1, year: now.getFullYear(),
         amount: Number(wrap.querySelector("#rpAmount").value) || 0,
         paidDate: todayISO(), createdAt: serverTimestamp(),
@@ -705,7 +933,8 @@ function openCollectRentModal(tenant) {
   });
 }
 
-function openAddExpenseModal(subUnitId, cats) {
+function openTenantExpenseModal(tenant) {
+  const cats = expenseCategories.filter(c => c.subUnitId === tenant.subUnitId);
   openModal(t().addExpense, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
@@ -732,7 +961,8 @@ function openAddExpenseModal(subUnitId, cats) {
       const amount = Number(wrap.querySelector("#exAmount").value) || 0;
       if (!amount) return;
       await addDoc(collection(db, "expenses"), {
-        subUnitId, categoryId: wrap.querySelector("#exCat").value,
+        subUnitId: tenant.subUnitId, tenantId: tenant.id, tenantName: tenant.name,
+        categoryId: wrap.querySelector("#exCat").value,
         amount, details: wrap.querySelector("#exDetails").value.trim(),
         date: todayISO(), createdAt: serverTimestamp(),
       });
@@ -741,98 +971,47 @@ function openAddExpenseModal(subUnitId, cats) {
   });
 }
 
-function openAddCategoryModal(subUnitId) {
-  openModal(t().addCategory, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().newCategoryName}</span>
-        <input id="catName" class="inp" />
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#catName").value.trim();
-      if (!name) return;
-      await addDoc(collection(db, "expenseCategories"), { subUnitId, name, createdAt: serverTimestamp() });
-      wrap.remove();
-    });
-  });
-}
-
-const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
-function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge-green"; }
-
-// ---------------------------------------------------------------------------
-// Events module: per Sub Unit (billingType === perEvent) booking, payments,
-// cancel/refund
-// ---------------------------------------------------------------------------
-let activeEventSub = null;
-let openEventId = null;
-
-function eventSubUnits() { return subUnits.filter(s => s.billingType === "perEvent"); }
-
-function eventTotals(eventId) {
-  const pays = eventPayments.filter(p => p.eventId === eventId);
-  const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
-  const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
-  return { paid, refunded };
-}
-
-function nextMemoNo(subUnitId) {
+// --- Events ---
+function nextMemoSuggestion(subUnitId) {
   const su = subUnits.find(s => s.id === subUnitId);
   const u = units.find(x => x.id === su?.unitId);
   const prefix = (u?.name || "EVT").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "EV";
-  const n = dashEvents.filter(e => e.subUnitId === subUnitId).length + 1;
+  const n = events.filter(e => e.subUnitId === subUnitId).length + 1;
   return `${prefix}-EVT-${String(n).padStart(4, "0")}`;
 }
-
-function renderEventsTab(el, isAdmin) {
-  const subs = eventSubUnits();
-  if (!activeEventSub && subs.length) activeEventSub = subs[0].id;
-  el.innerHTML = `
-    <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
-      <div class="flex flex-wrap gap-1.5">
-        ${subs.map(s => `
-          <button data-eventsub="${s.id}" class="tab-btn" style="border-radius:8px;background:${s.id === activeEventSub ? "#1B4332" : "#fff"};color:${s.id === activeEventSub ? "#fff" : "#6B6659"};border:1px solid #D8D2C2">
-            ${esc(unitSubLabel(s.id))}
-          </button>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`}
-      </div>
-      ${activeEventSub ? `<button id="bookEventBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px">${icons.plus}${t().bookEvent}</button>` : ""}
-    </div>
-    <div id="eventsBody" class="grid gap-3"></div>`;
-  el.querySelectorAll("[data-eventsub]").forEach(b => b.addEventListener("click", () => {
-    activeEventSub = b.getAttribute("data-eventsub"); renderEventsTab(el, isAdmin);
-  }));
-  const bookBtn = document.getElementById("bookEventBtn");
-  if (bookBtn) bookBtn.addEventListener("click", () => openBookEventModal(activeEventSub));
-  paintEventsTab();
+function memoTaken(subUnitId, memoNo, excludeId) {
+  return events.some(e => e.subUnitId === subUnitId && e.id !== excludeId && (e.memoNo || "").toLowerCase() === memoNo.toLowerCase());
 }
 
-function paintEventsTab() {
-  const body = document.getElementById("eventsBody");
-  if (!body) return;
-  const list = dashEvents.filter(e => e.subUnitId === activeEventSub);
-  body.innerHTML = list.map(e => {
-    const { paid, refunded } = eventTotals(e.id);
-    const balance = (e.totalRentAmount || 0) - paid + refunded;
+function paintEventsBody(body, su) {
+  const list = sortedEvents(events.filter(e => e.subUnitId === deSub));
+  const add = canAdd(deSub);
+  body.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold" style="color:#1B4332">${t().dataEntry}</h3>
+      ${add ? `<button id="bookEventBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px">${icons.plus}${t().bookEvent}</button>` : ""}
+    </div>
+    <div id="eventsListBox" class="grid gap-3"></div>`;
+  const bookBtn = document.getElementById("bookEventBtn");
+  if (bookBtn) bookBtn.addEventListener("click", () => openBookEventModal(deSub));
+  document.getElementById("eventsListBox").innerHTML = list.map(e => {
+    const balance = eventBalance(e);
     const tone = e.status === "cancelled" ? "badge-gray" : balance <= 0 ? "badge-green" : "badge-gold";
+    const statusText = e.status === "cancelled" ? t().cancelledStatus : balance <= 0 ? t().doneStatus : t().pendingStatus;
+    const pendingReq = pendingApprovalFor(e.id);
     return `
     <div class="card p-4" data-openevent="${e.id}" style="cursor:pointer">
       <div class="flex items-center justify-between">
         <div>
           <div class="text-sm font-semibold" style="color:#1B4332">${esc(e.customerName)} <span class="text-xs font-normal" style="color:#B08968">${esc(e.memoNo)}</span>
-          ${e.status === "cancelled" ? `<span class="badge badge-gray ml-1">${t().cancelledStatus}</span>` : ""}</div>
+          ${pendingReq ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
           <div class="text-xs" style="color:#8a8578">${esc(e.eventDate || "")} ${esc(e.eventTime || "")} · ${t().tableQty}: ${e.tableQty || 0} · ${t().boyQty}: ${e.boyQty || 0}</div>
         </div>
-        <span class="badge ${tone}">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</span>
+        <span class="badge ${tone}">${statusText} · ৳${Math.max(balance, 0).toLocaleString()}</span>
       </div>
     </div>`;
   }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
-  body.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
+  document.getElementById("eventsListBox").querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
 }
 
 function eventTypeChipsHtml(selectedIds) {
@@ -840,35 +1019,40 @@ function eventTypeChipsHtml(selectedIds) {
     ${eventTypes.map(et => `
       <button type="button" data-etype="${et.id}" class="badge" style="cursor:pointer;border:1px solid ${selectedIds.includes(et.id) ? "#1B4332" : "#D8D2C2"};background:${selectedIds.includes(et.id) ? "#1B4332" : "#fff"};color:${selectedIds.includes(et.id) ? "#fff" : "#6B6659"}">
         ${esc(et.name)}
-      </button>`).join("")}
-    <button type="button" id="addEtypeBtn" class="badge" style="cursor:pointer;border:1px dashed #D8D2C2;color:#8a8578">${icons.plus}${t().addType}</button>
+      </button>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
   </div>`;
 }
 
-function openBookEventModal(subUnitId) {
-  let selected = [];
-  const memo = nextMemoNo(subUnitId);
-  openModal(`${t().bookEvent} — ${memo}`, `
+function openBookEventModal(subUnitId, existing) {
+  const isEdit = !!existing;
+  let selected = existing ? [...(existing.eventTypeIds || [])] : [];
+  const memoSuggestion = existing ? existing.memoNo : nextMemoSuggestion(subUnitId);
+  openModal(isEdit ? t().editEvent : t().bookEvent, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().memoNo}</span>
+        <input id="evMemo" class="inp" value="${esc(memoSuggestion)}" />
+      </label>
+      <div id="memoWarn" class="text-xs" style="color:#9B2C2C"></div>
+      <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().customerName}</span>
-        <input id="evName" class="inp" />
+        <input id="evName" class="inp" value="${esc(existing?.customerName || "")}" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().address}</span>
-        <input id="evAddress" class="inp" />
+        <input id="evAddress" class="inp" value="${esc(existing?.customerAddress || "")}" />
       </label>
       <div class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
         <div id="etypeWrap">${eventTypeChipsHtml(selected)}</div>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="evBooking" type="date" class="inp" value="${todayISO()}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventDate}</span><input id="evDate" type="date" class="inp" value="${todayISO()}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventTime}</span><input id="evTime" type="time" class="inp" value="18:00" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="evBooking" type="date" class="inp" value="${existing?.bookingDate || todayISO()}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventDate}</span><input id="evDate" type="date" class="inp" value="${existing?.eventDate || todayISO()}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventTime}</span><input id="evTime" type="time" class="inp" value="${existing?.eventTime || "18:00"}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" value="${existing?.totalRentAmount || ""}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" value="${existing?.tableQty ?? ""}" /></label>
+        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" value="${existing?.boyQty ?? ""}" /></label>
       </div>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
@@ -882,98 +1066,87 @@ function openBookEventModal(subUnitId) {
         wrap.querySelector("#etypeWrap").innerHTML = eventTypeChipsHtml(selected);
         bindChips();
       }));
-      const addBtn = wrap.querySelector("#addEtypeBtn");
-      if (addBtn) addBtn.addEventListener("click", () => openAddEventTypeModal(wrap));
     }
     bindChips();
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#evMemo").addEventListener("input", (e) => {
+      const warn = wrap.querySelector("#memoWarn");
+      if (memoTaken(subUnitId, e.target.value.trim(), existing?.id)) { warn.textContent = t().duplicateMemo; markInvalid(e.target); }
+      else { warn.textContent = ""; clearInvalid(e.target); }
+    });
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const customerName = wrap.querySelector("#evName").value.trim();
-      if (!customerName) return;
-      await addDoc(collection(db, "events"), {
-        subUnitId, memoNo: nextMemoNo(subUnitId),
-        customerName, customerAddress: wrap.querySelector("#evAddress").value.trim(),
-        eventTypeIds: selected,
-        bookingDate: wrap.querySelector("#evBooking").value,
-        eventDate: wrap.querySelector("#evDate").value,
-        eventTime: wrap.querySelector("#evTime").value,
-        totalRentAmount: Number(wrap.querySelector("#evTotal").value) || 0,
-        tableQty: Number(wrap.querySelector("#evTable").value) || 0,
-        boyQty: Number(wrap.querySelector("#evBoy").value) || 0,
-        status: "pending", createdAt: serverTimestamp(),
+      const fields = {
+        evMemo: wrap.querySelector("#evMemo"), evName: wrap.querySelector("#evName"),
+        evAddress: wrap.querySelector("#evAddress"), evBooking: wrap.querySelector("#evBooking"),
+        evDate: wrap.querySelector("#evDate"), evTime: wrap.querySelector("#evTime"),
+        evTotal: wrap.querySelector("#evTotal"), evTable: wrap.querySelector("#evTable"), evBoy: wrap.querySelector("#evBoy"),
+      };
+      let ok = true;
+      Object.values(fields).forEach(f => {
+        if (!f.value || !f.value.toString().trim()) { markInvalid(f); ok = false; } else clearInvalid(f);
       });
+      const memoVal = fields.evMemo.value.trim();
+      if (memoTaken(subUnitId, memoVal, existing?.id)) { markInvalid(fields.evMemo); ok = false; }
+      if (!selected.length) ok = false;
+      if (!ok) { wrap.querySelector("#memoWarn").textContent = t().fillAllFields; return; }
+
+      const data = {
+        memoNo: memoVal, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
+        eventTypeIds: selected, bookingDate: fields.evBooking.value, eventDate: fields.evDate.value, eventTime: fields.evTime.value,
+        totalRentAmount: Number(fields.evTotal.value) || 0, tableQty: Number(fields.evTable.value) || 0, boyQty: Number(fields.evBoy.value) || 0,
+      };
+      if (isEdit) {
+        await performEdit("events", existing.id, data, subUnitId);
+      } else {
+        await addDoc(collection(db, "events"), { subUnitId, status: "pending", createdAt: serverTimestamp(), ...data });
+      }
       wrap.remove();
     });
   });
-}
-
-function openAddEventTypeModal(parentWrap) {
-  openModal(t().addType, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
-        <input id="etName" class="inp" />
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#etName").value.trim();
-      if (!name) return;
-      await addDoc(collection(db, "eventTypes"), { name, createdAt: serverTimestamp() });
-      wrap.remove();
-    });
-  });
-}
-
-function refreshOpenEventDetail() {
-  if (openEventId && document.getElementById("eventDetailBody")) paintEventDetailBody();
 }
 
 function openEventDetailModal(eventId) {
-  openEventId = eventId;
   const wrap = openModal("…", `<div id="eventDetailBody"></div>`, () => {});
-  wrap.dataset.eventModal = "1";
-  wrap.addEventListener("click", (e) => { if (e.target === wrap) { openEventId = null; } });
-  wrap.querySelector("#modalClose").addEventListener("click", () => { openEventId = null; });
-  paintEventDetailBody();
+  wrap.dataset.eventModal = eventId;
+  paintEventDetailBody(eventId);
 }
 
-function paintEventDetailBody() {
+function paintEventDetailBody(eventId) {
   const box = document.getElementById("eventDetailBody");
   if (!box) return;
-  const e = dashEvents.find(x => x.id === openEventId);
+  const e = events.find(x => x.id === eventId);
   if (!e) { box.innerHTML = ""; return; }
-  const { paid, refunded } = eventTotals(openEventId);
-  const balance = (e.totalRentAmount || 0) - paid + refunded;
-  const pays = eventPayments.filter(p => p.eventId === openEventId);
-  const exps = eventExpenses.filter(x => x.eventId === openEventId);
+  const balance = eventBalance(e);
+  const pays = eventPayments.filter(p => p.eventId === eventId);
+  const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
+  const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
+  const exps = eventExpenses.filter(x => x.eventId === eventId);
+  const add = canAdd(e.subUnitId), edit = canEdit(e.subUnitId);
+  const pendingReq = pendingApprovalFor(e.id);
 
   box.closest(".modal-box").querySelector("h3").textContent = `${e.customerName} — ${e.memoNo}`;
 
   box.innerHTML = `
+    ${pendingReq ? `<div class="badge badge-gold mb-3">${t().approvalPendingBadge}</div>` : ""}
     <div class="grid grid-cols-2 gap-2 text-sm mb-4">
       <div><span style="color:#8a8578">${t().eventDate}: </span>${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
-      <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : t().pendingStatus}</span></div>
+      <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : (balance <= 0 ? t().doneStatus : t().pendingStatus)}</span></div>
+      <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(e.customerAddress || "—")}</div>
       <div><span style="color:#8a8578">${t().totalRent}: </span>৳${Number(e.totalRentAmount || 0).toLocaleString()}</div>
       <div><span style="color:#8a8578">${t().collected}: </span>৳${paid.toLocaleString()}</div>
       ${refunded > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().refund}: </span>-৳${refunded.toLocaleString()}</div>` : ""}
       <div class="col-span-2 text-base font-semibold" style="color:#1B4332">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</div>
     </div>
-
     ${e.status !== "cancelled" ? `
     <div class="flex flex-wrap gap-2 mb-4">
-      <button id="btnAdvance" class="btn" style="background:#B08968;color:#fff;padding:6px 10px;font-size:12px">${icons.plus}${t().advance}</button>
-      <button id="btnDue" class="btn" style="background:#B08968;color:#fff;padding:6px 10px;font-size:12px">${icons.plus}${t().dueCollection}</button>
-      <button id="btnExp" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().eventExpenseHistory}</button>
-      ${paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : ""}
-      <button id="btnCancelEvent" class="btn" style="background:#9B2C2C;color:#fff;padding:6px 10px;font-size:12px">${t().cancelEvent}</button>
-    </div>` : (paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline mb-4" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : "")}
+      ${edit ? `<button id="btnEditEvent" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.pencil}${t().edit}</button>` : ""}
+      ${add ? `<button id="btnAdvance" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().advance}</button>` : ""}
+      ${add ? `<button id="btnDue" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().dueCollection}</button>` : ""}
+      ${add ? `<button id="btnExp" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().eventExpenseHistory}</button>` : ""}
+      ${add && paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : ""}
+      ${add ? `<button id="btnCancelEvent" class="btn btn-danger" style="padding:6px 10px;font-size:12px">${t().cancelEvent}</button>` : ""}
+    </div>` : (add && paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline mb-4" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : "")}
     ${e.status === "cancelled" && e.cancelReason ? `<p class="text-xs mb-3" style="color:#8a8578">${t().cancelReason}: ${esc(e.cancelReason)}</p>` : ""}
-
     <div class="mb-4">
       <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().payHistory}</h4>
       ${pays.length ? `<ul class="flex flex-col gap-1.5">${pays.map(p => `
@@ -991,6 +1164,7 @@ function paintEventDetailBody() {
         </li>`).join("")}</ul>
     </div>` : ""}`;
 
+  const be = box.querySelector("#btnEditEvent"); if (be) be.addEventListener("click", () => openBookEventModal(e.subUnitId, e));
   const b1 = box.querySelector("#btnAdvance"); if (b1) b1.addEventListener("click", () => openEventPaymentModal(e, "advance"));
   const b2 = box.querySelector("#btnDue"); if (b2) b2.addEventListener("click", () => openEventPaymentModal(e, "due"));
   const b3 = box.querySelector("#btnRefund"); if (b3) b3.addEventListener("click", () => openEventPaymentModal(e, "refund", paid - refunded));
@@ -1069,7 +1243,7 @@ function openCancelEventModal(ev) {
       </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="confirmBtn" class="btn" style="background:#9B2C2C;color:#fff">${t().cancelEvent}</button>
+        <button id="confirmBtn" class="btn btn-danger">${t().cancelEvent}</button>
       </div>
     </div>`, (wrap) => {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
@@ -1082,8 +1256,14 @@ function openCancelEventModal(ev) {
   });
 }
 
-let allUsers = [];
-let unsubUsers = null;
+// ---------------------------------------------------------------------------
+// Admin Panel
+// ---------------------------------------------------------------------------
+const BILLING_TYPES = ["hourly", "daily", "monthly", "perEvent"];
+function billingBadgeTone(bt) { return bt === "perEvent" ? "badge-gold" : "badge-green"; }
+function billingOptionsHtml(selected) {
+  return BILLING_TYPES.map(bt => `<option value="${bt}" ${bt === selected ? "selected" : ""}>${esc(t()[bt])}</option>`).join("");
+}
 
 function renderAdminPanel(el) {
   el.innerHTML = `
@@ -1098,66 +1278,49 @@ function renderAdminPanel(el) {
     </div>
 
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2" style="color:#1B4332">
-        ${icons.gear}<h2 class="text-lg font-semibold">${t().adminPanel}</h2>
-      </div>
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.building}<h2 class="text-lg font-semibold">${t().units}</h2></div>
       <button id="addUnitBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUnit}</button>
     </div>
-    <p class="text-xs mb-4" style="color:#8a8578">${esc(t().units)}: ${units.length}</p>
     <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2" style="color:#1B4332">
-        ${icons.users}<h2 class="text-lg font-semibold">${t().userManagement}</h2>
-      </div>
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().expenseCategories}</h2></div>
+    </div>
+    <div id="catGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().eventTypesMgmt}</h2></div>
+      <button id="addEtBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addType}</button>
+    </div>
+    <div id="etGrid" class="flex flex-wrap gap-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.bell}<h2 class="text-lg font-semibold">${t().approvalPending}</h2></div>
+    </div>
+    <div id="approvalList" class="flex flex-col gap-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.users}<h2 class="text-lg font-semibold">${t().userManagement}</h2></div>
       <button id="addUserBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addUser}</button>
     </div>
     <div id="usersList" class="flex flex-col gap-2"></div>`;
+
   document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
   document.getElementById("addUserBtn").addEventListener("click", openAddUserModal);
+  document.getElementById("addEtBtn").addEventListener("click", () => openEventTypeModal());
   document.getElementById("hijriMinus").addEventListener("click", () => adjustHijriOffset(-1));
   document.getElementById("hijriPlus").addEventListener("click", () => adjustHijriOffset(1));
   paintAdminGrid();
+  paintCategoryGrid();
+  paintEventTypeGrid();
+  paintApprovalList();
   paintUsersList();
-  startUsersListener();
 }
 
 async function adjustHijriOffset(delta) {
   const current = globalSettings.hijriOffsetDays || 0;
   const next = Math.max(-3, Math.min(3, current + delta));
   await setDoc(doc(db, "settings", "global"), { hijriOffsetDays: next }, { merge: true });
-}
-
-function paintUsersList() {
-  const listEl = document.getElementById("usersList");
-  if (!listEl) return;
-  listEl.innerHTML = allUsers.map(u => `
-    <div class="card p-3 flex items-center justify-between">
-      <div>
-        <div class="text-sm font-medium" style="color:#1B4332">${esc(u.name || u.email)} ${u.role === "admin" ? `<span class="badge badge-gold">${t().admin_r}</span>` : ""}</div>
-        <div class="text-xs" style="color:#8a8578">${esc(u.email || "")}</div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="badge ${u.active === false ? "badge-gray" : "badge-green"}">${u.active === false ? t().inactive : t().active}</span>
-        <button data-edituser="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.pencil}${t().edit}</button>
-        <button data-toggleactive="${u.id}" class="btn btn-outline" style="padding:4px 8px;font-size:12px">${u.active === false ? t().activate : t().deactivate}</button>
-      </div>
-    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`;
-  listEl.querySelectorAll("[data-edituser]").forEach(b => b.addEventListener("click", () => openEditUserModal(allUsers.find(u => u.id === b.getAttribute("data-edituser")))));
-  listEl.querySelectorAll("[data-toggleactive]").forEach(b => b.addEventListener("click", async () => {
-    const u = allUsers.find(x => x.id === b.getAttribute("data-toggleactive"));
-    if (!u) return;
-    const newActive = u.active === false ? true : false;
-    await updateDoc(doc(db, "users", u.id), { active: newActive });
-  }));
-}
-
-function startUsersListener() {
-  if (unsubUsers) return;
-  unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
-    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "adminPanel") paintUsersList();
-  });
 }
 
 function paintAdminGrid() {
@@ -1168,7 +1331,8 @@ function paintAdminGrid() {
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-1.5">
           <h3 class="font-semibold" style="color:#1B4332">${esc(u.name)}</h3>
-          <button data-editunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px" title="${t().editUnit}">${icons.pencil}</button>
+          <button data-editunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px">${icons.pencil}</button>
+          <button data-delunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px;color:#9B2C2C">${icons.trash}</button>
         </div>
         <button data-addsub="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addSubUnit}</button>
       </div>
@@ -1178,108 +1342,202 @@ function paintAdminGrid() {
             <span>${esc(s.name)}</span>
             <span class="flex items-center gap-1.5">
               <span class="badge ${billingBadgeTone(s.billingType)}">${esc(t()[s.billingType] || s.billingType || "—")}</span>
-              <button data-editsub="${s.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px" title="${t().editSubUnit}">${icons.pencil}</button>
+              <button data-editsub="${s.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px">${icons.pencil}</button>
+              <button data-delsub="${s.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px;color:#9B2C2C">${icons.trash}</button>
             </span>
           </li>`).join("") || `<li class="text-xs" style="color:#8a8578">—</li>`}
       </ul>
     </div>`).join("");
   grid.querySelectorAll("[data-addsub]").forEach(b => b.addEventListener("click", () => openAddSubUnitModal(b.getAttribute("data-addsub"))));
   grid.querySelectorAll("[data-editunit]").forEach(b => b.addEventListener("click", () => openEditUnitModal(units.find(u => u.id === b.getAttribute("data-editunit")))));
+  grid.querySelectorAll("[data-delunit]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "units", b.getAttribute("data-delunit"))); });
+  }));
   grid.querySelectorAll("[data-editsub]").forEach(b => b.addEventListener("click", () => openEditSubUnitModal(subUnits.find(s => s.id === b.getAttribute("data-editsub")))));
+  grid.querySelectorAll("[data-delsub]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "subUnits", b.getAttribute("data-delsub"))); });
+  }));
 }
 
-function openModal(title, bodyHtml, onMount) {
-  const wrap = document.createElement("div");
-  wrap.className = "modal-backdrop";
-  wrap.innerHTML = `
-    <div class="modal-box">
-      <div class="sticky top-0 flex items-center justify-between border-b bg-white px-5 py-3.5" style="border-color:#EEEAE0">
-        <h3 class="font-semibold" style="color:#1B4332">${esc(title)}</h3>
-        <button id="modalClose" style="color:#8a8578">${icons.x}</button>
-      </div>
-      <div class="p-5">${bodyHtml}</div>
-    </div>`;
-  document.body.appendChild(wrap);
-  wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
-  wrap.querySelector("#modalClose").addEventListener("click", () => wrap.remove());
-  onMount(wrap);
-  return wrap;
-}
-
-function openSettingsModal() {
-  const s = dispSettings;
-  openModal(t().settings, `
-    <div class="flex flex-col gap-6">
-      <div>
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium" style="color:#6B6659">${t().language}</span>
-          <select id="langSelect" class="inp">
-            <option value="en" ${lang === "en" ? "selected" : ""}>English</option>
-            <option value="bn" ${lang === "bn" ? "selected" : ""}>বাংলা</option>
-          </select>
-        </label>
-      </div>
-
-      <div>
-        <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().dateDisplay}</div>
-        <div class="flex flex-col gap-2">
-          ${[["showWeekday","showWeekday"],["showWeek","showWeek"],["showGregorian","showGregorian"],["showBangla","showBangla"],["showHijri","showHijri"]].map(([key,label]) => `
-            <label class="flex items-center justify-between text-sm rounded-lg px-3 py-2" style="background:#F7F5F0">
-              <span>${t()[label]}</span>
-              <input type="checkbox" data-dtoggle="${key}" ${s[key] ? "checked" : ""} />
-            </label>`).join("")}
-        </div>
-      </div>
-
-      <div>
-        <button id="pwToggleRow" type="button" class="w-full flex items-center justify-between text-sm font-medium rounded-lg px-3 py-2" style="background:#F7F5F0;color:#6B6659">
-          <span>${t().changePassword}</span>
-          <span id="pwChevron">▾</span>
-        </button>
-        <div id="pwBody" class="flex flex-col gap-3 mt-3" style="display:none">
-          <input id="curPass" type="password" placeholder="${t().currentPassword}" class="inp" />
-          <input id="newPass" type="password" placeholder="${t().newPassword}" class="inp" />
-          <input id="newPass2" type="password" placeholder="${t().confirmPassword}" class="inp" />
-          <div id="passMsg" class="text-xs"></div>
-          <button id="changePassBtn" class="btn btn-outline">${t().changePassword}</button>
-        </div>
-      </div>
-
-      <div class="flex justify-end">
-        <button id="closeBtn" class="btn btn-primary">${t().save}</button>
-      </div>
+function openAddUnitModal() {
+  openModal(t().addUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().unitName}</span><input id="unitNameInput" class="inp" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
-    wrap.querySelector("#langSelect").addEventListener("change", (e) => { lang = e.target.value; wrap.remove(); render(); });
-    wrap.querySelectorAll("[data-dtoggle]").forEach(cb => cb.addEventListener("change", () => {
-      dispSettings[cb.getAttribute("data-dtoggle")] = cb.checked;
-      saveSettings(dispSettings);
-      const bar = document.getElementById("dateBar");
-      if (bar) bar.innerHTML = dateBarHtml();
-    }));
-    wrap.querySelector("#pwToggleRow").addEventListener("click", () => {
-      const body = wrap.querySelector("#pwBody");
-      const chevron = wrap.querySelector("#pwChevron");
-      const open = body.style.display !== "none";
-      body.style.display = open ? "none" : "flex";
-      chevron.textContent = open ? "▾" : "▴";
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#unitNameInput").value.trim();
+      if (!name) return;
+      await addDoc(collection(db, "units"), { name, createdAt: serverTimestamp() });
+      wrap.remove();
     });
-    wrap.querySelector("#closeBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#changePassBtn").addEventListener("click", async () => {
-      const msg = wrap.querySelector("#passMsg");
-      const cur = wrap.querySelector("#curPass").value;
-      const n1 = wrap.querySelector("#newPass").value;
-      const n2 = wrap.querySelector("#newPass2").value;
-      if (n1 !== n2) { msg.style.color = "#9B2C2C"; msg.textContent = t().passwordMismatch; return; }
-      try {
-        const cred = EmailAuthProvider.credential(currentUser.email, cur);
-        await reauthenticateWithCredential(currentUser, cred);
-        await updatePassword(currentUser, n1);
-        msg.style.color = "#1B4332"; msg.textContent = t().passwordChanged;
-      } catch (e) {
-        msg.style.color = "#9B2C2C"; msg.textContent = t().passwordError;
+  });
+}
+function openEditUnitModal(unit) {
+  if (!unit) return;
+  openModal(t().editUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().unitName}</span><input id="unitNameInput" class="inp" value="${esc(unit.name)}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#unitNameInput").value.trim();
+      if (!name) return;
+      wrap.remove();
+      withPasswordConfirm(async () => { await updateDoc(doc(db, "units", unit.id), { name }); });
+    });
+  });
+}
+function openAddSubUnitModal(unitId) {
+  openModal(t().addSubUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().subUnitName}</span><input id="subNameInput" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().billingType}</span><select id="subBillingInput" class="inp">${billingOptionsHtml("monthly")}</select></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#subNameInput").value.trim();
+      const billingType = wrap.querySelector("#subBillingInput").value;
+      if (!name) return;
+      await addDoc(collection(db, "subUnits"), { unitId, name, billingType, createdAt: serverTimestamp() });
+      wrap.remove();
+    });
+  });
+}
+function openEditSubUnitModal(sub) {
+  if (!sub) return;
+  openModal(t().editSubUnit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().subUnitName}</span><input id="subNameInput" class="inp" value="${esc(sub.name)}" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().billingType}</span><select id="subBillingInput" class="inp">${billingOptionsHtml(sub.billingType)}</select></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#subNameInput").value.trim();
+      const billingType = wrap.querySelector("#subBillingInput").value;
+      if (!name) return;
+      wrap.remove();
+      withPasswordConfirm(async () => { await updateDoc(doc(db, "subUnits", sub.id), { name, billingType }); });
+    });
+  });
+}
+
+function paintCategoryGrid() {
+  const grid = document.getElementById("catGrid");
+  if (!grid) return;
+  const nonEventSubs = subUnits.filter(s => s.billingType !== "perEvent");
+  grid.innerHTML = nonEventSubs.map(su => `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(unitSubLabel(su.id))}</h3>
+        <button data-addcat="${su.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addCategory}</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${expenseCategories.filter(c => c.subUnitId === su.id).map(c => `
+          <span class="badge badge-green" style="display:inline-flex;align-items:center;gap:6px">
+            ${esc(c.name)}
+            <button data-editcat="${c.id}" style="color:#1B4332">${icons.pencil}</button>
+            <button data-delcat="${c.id}" style="color:#9B2C2C">${icons.trash}</button>
+          </span>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-addcat]").forEach(b => b.addEventListener("click", () => openCategoryModal(b.getAttribute("data-addcat"))));
+  grid.querySelectorAll("[data-editcat]").forEach(b => b.addEventListener("click", () => {
+    const cat = expenseCategories.find(c => c.id === b.getAttribute("data-editcat"));
+    openCategoryModal(cat.subUnitId, cat);
+  }));
+  grid.querySelectorAll("[data-delcat]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "expenseCategories", b.getAttribute("data-delcat"))); });
+  }));
+}
+function openCategoryModal(subUnitId, existing) {
+  openModal(existing ? t().edit : t().addCategory, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().newCategoryName}</span><input id="catName" class="inp" value="${esc(existing?.name || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#catName").value.trim();
+      if (!name) return;
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "expenseCategories", existing.id), { name }); });
+      } else {
+        addDoc(collection(db, "expenseCategories"), { subUnitId, name, createdAt: serverTimestamp() });
       }
     });
   });
+}
+
+function paintEventTypeGrid() {
+  const grid = document.getElementById("etGrid");
+  if (!grid) return;
+  grid.innerHTML = eventTypes.map(et => `
+    <span class="badge badge-gold" style="display:inline-flex;align-items:center;gap:6px">
+      ${esc(et.name)}
+      <button data-editet="${et.id}" style="color:#8a6a3f">${icons.pencil}</button>
+      <button data-delet="${et.id}" style="color:#9B2C2C">${icons.trash}</button>
+    </span>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-editet]").forEach(b => b.addEventListener("click", () => openEventTypeModal(eventTypes.find(x => x.id === b.getAttribute("data-editet")))));
+  grid.querySelectorAll("[data-delet]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "eventTypes", b.getAttribute("data-delet"))); });
+  }));
+}
+function openEventTypeModal(existing) {
+  openModal(existing ? t().edit : t().addType, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventType}</span><input id="etName" class="inp" value="${esc(existing?.name || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#etName").value.trim();
+      if (!name) return;
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "eventTypes", existing.id), { name }); });
+      } else {
+        addDoc(collection(db, "eventTypes"), { name, createdAt: serverTimestamp() });
+      }
+    });
+  });
+}
+
+function targetLabel(req) {
+  if (req.targetCollection === "tenants") { const tn = tenants.find(x => x.id === req.targetId); return tn ? tn.name : req.targetId; }
+  if (req.targetCollection === "events") { const ev = events.find(x => x.id === req.targetId); return ev ? `${ev.customerName} (${ev.memoNo})` : req.targetId; }
+  return req.targetId;
+}
+function paintApprovalList() {
+  const box = document.getElementById("approvalList");
+  if (!box) return;
+  const pending = approvalRequests.filter(r => r.status === "pending");
+  box.innerHTML = pending.map(r => `
+    <div class="card p-3">
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-sm font-medium" style="color:#1B4332">${esc(targetLabel(r))}</div>
+        <span class="text-xs" style="color:#8a8578">${t().requestedBy}: ${esc(r.requestedByName || "")}</span>
+      </div>
+      <div class="text-xs mb-2" style="color:#6B6659">${t().changes}: ${Object.entries(r.changes || {}).map(([k,v]) => `${esc(k)}: ${esc(Array.isArray(v) ? v.join(",") : v)}`).join(" · ")}</div>
+      <div class="flex gap-2">
+        <button data-approve="${r.id}" class="btn btn-primary" style="padding:4px 10px;font-size:12px">${icons.check}${t().approve}</button>
+        <button data-reject="${r.id}" class="btn btn-outline" style="padding:4px 10px;font-size:12px">${t().reject}</button>
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noRequests}</p>`;
+  box.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", async () => {
+    const r = approvalRequests.find(x => x.id === b.getAttribute("data-approve"));
+    if (!r) return;
+    await updateDoc(doc(db, r.targetCollection, r.targetId), r.changes);
+    await updateDoc(doc(db, "approvalRequests", r.id), { status: "approved" });
+  }));
+  box.querySelectorAll("[data-reject]").forEach(b => b.addEventListener("click", async () => {
+    await updateDoc(doc(db, "approvalRequests", b.getAttribute("data-reject")), { status: "rejected" });
+  }));
 }
 
 function permMatrixHtml(existingPerms) {
@@ -1312,43 +1570,48 @@ function readPermMatrix(wrap) {
     if (!out[subId]) out[subId] = { view: false, add: false, edit: false };
     out[subId][flag] = cb.checked;
   });
-  // drop subunits with no flags checked at all (= No Access)
   Object.keys(out).forEach(k => { if (!out[k].view && !out[k].add && !out[k].edit) delete out[k]; });
   return out;
+}
+
+function paintUsersList() {
+  const listEl = document.getElementById("usersList");
+  if (!listEl) return;
+  listEl.innerHTML = allUsers.map(u => `
+    <div class="card p-3 flex items-center justify-between">
+      <div>
+        <div class="text-sm font-medium" style="color:#1B4332">${esc(u.name || u.email)} ${u.role === "admin" ? `<span class="badge badge-gold">${t().admin_r}</span>` : ""}</div>
+        <div class="text-xs" style="color:#8a8578">${esc(u.email || "")}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge ${u.active === false ? "badge-gray" : "badge-green"}">${u.active === false ? t().inactive : t().active}</span>
+        <button data-edituser="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.pencil}${t().edit}</button>
+        <button data-toggleactive="${u.id}" class="btn btn-outline" style="padding:4px 8px;font-size:12px">${u.active === false ? t().activate : t().deactivate}</button>
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`;
+  listEl.querySelectorAll("[data-edituser]").forEach(b => b.addEventListener("click", () => openEditUserModal(allUsers.find(u => u.id === b.getAttribute("data-edituser")))));
+  listEl.querySelectorAll("[data-toggleactive]").forEach(b => b.addEventListener("click", async () => {
+    const u = allUsers.find(x => x.id === b.getAttribute("data-toggleactive"));
+    if (!u) return;
+    await updateDoc(doc(db, "users", u.id), { active: u.active === false ? true : false });
+  }));
 }
 
 function openAddUserModal() {
   openModal(t().addUser, `
     <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().name}</span>
-        <input id="uName" class="inp" />
-      </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().email}</span>
-        <input id="uEmail" type="email" class="inp" />
-      </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().password}</span>
-        <input id="uPassword" type="password" class="inp" />
-      </label>
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" id="uIsAdmin" />
-        <span>${t().isAdminUser}</span>
-      </label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().name}</span><input id="uName" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().email}</span><input id="uEmail" type="email" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().password}</span><input id="uPassword" type="password" class="inp" /></label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" /><span>${t().isAdminUser}</span></label>
       <div id="uPermsWrap">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml({})}</div>
       </div>
       <div id="uErr" class="text-xs" style="color:#9B2C2C"></div>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
-    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => {
-      wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block";
-    });
+    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => { wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block"; });
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#uName").value.trim();
@@ -1366,45 +1629,29 @@ function openAddUserModal() {
         const newUid = cred.user.uid;
         await signOut(secAuth);
         await deleteApp(secApp);
-        await setDoc(doc(db, "users", newUid), {
-          name, email, role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp(),
-        });
+        await setDoc(doc(db, "users", newUid), { name, email, role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp() });
         wrap.remove();
-      } catch (e) {
-        errBox.textContent = t().userCreateError;
-      }
+      } catch (e) { errBox.textContent = t().userCreateError; }
     });
   });
 }
-
 function openEditUserModal(user) {
   if (!user) return;
   const isAdminUser0 = user.role === "admin";
   openModal(t().editUser, `
     <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().name}</span>
-        <input id="uName" class="inp" value="${esc(user.name || "")}" />
-      </label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().name}</span><input id="uName" class="inp" value="${esc(user.name || "")}" /></label>
       <p class="text-xs" style="color:#8a8578">${esc(user.email || "")}</p>
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} />
-        <span>${t().isAdminUser}</span>
-      </label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} /><span>${t().isAdminUser}</span></label>
       <div id="uPermsWrap" style="${isAdminUser0 ? "display:none" : ""}">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml(user.permissions)}</div>
       </div>
       <button id="resetBtn" class="btn btn-outline">${t().sendResetEmail}</button>
       <div id="uMsg" class="text-xs"></div>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
-    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => {
-      wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block";
-    });
+    wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => { wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block"; });
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#resetBtn").addEventListener("click", async () => {
       const msg = wrap.querySelector("#uMsg");
@@ -1422,111 +1669,58 @@ function openEditUserModal(user) {
   });
 }
 
-function openAddUnitModal() {
-  openModal(t().addUnit, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().unitName}</span>
-        <input id="unitNameInput" class="inp" />
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#unitNameInput").value.trim();
-      if (!name) return;
-      await addDoc(collection(db, "units"), { name, createdAt: serverTimestamp() });
-      wrap.remove();
-    });
+// ---------------------------------------------------------------------------
+// Firestore listeners
+// ---------------------------------------------------------------------------
+function repaintCurrentTab() {
+  if (tab === "dashboard") paintDashboardCard();
+  if (tab === "dataEntry") paintDataEntryBody();
+  if (tab === "adminPanel" && isAdmin()) {
+    paintAdminGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintApprovalList(); paintUsersList();
+  }
+  document.querySelectorAll("[data-tenant-modal]").forEach(w => { const id = w.dataset.tenantModal; if (id) paintTenantDetailBody(id); });
+  document.querySelectorAll("[data-event-modal]").forEach(w => { const id = w.dataset.eventModal; if (id) paintEventDetailBody(id); });
+}
+
+function startAllListeners() {
+  if (unsubs.length) return;
+  const bind = (name, target) => onSnapshot(collection(db, name), (snap) => {
+    target.length = 0;
+    snap.docs.forEach(d => target.push({ id: d.id, ...d.data() }));
+    repaintCurrentTab();
   });
+  unsubs.push(bind("units", units));
+  unsubs.push(bind("subUnits", subUnits));
+  unsubs.push(bind("users", allUsers));
+  unsubs.push(bind("expenseCategories", expenseCategories));
+  unsubs.push(bind("eventTypes", eventTypes));
+  unsubs.push(bind("tenants", tenants));
+  unsubs.push(bind("rentPayments", rentPayments));
+  unsubs.push(bind("expenses", expenses));
+  unsubs.push(bind("events", events));
+  unsubs.push(bind("eventPayments", eventPayments));
+  unsubs.push(bind("eventExpenses", eventExpenses));
+  unsubs.push(bind("approvalRequests", approvalRequests));
+  unsubs.push(onSnapshot(doc(db, "settings", "global"), (snap) => {
+    globalSettings = { hijriOffsetDays: 0, ...(snap.exists() ? snap.data() : {}) };
+    const bar = document.getElementById("dateBar");
+    if (bar) bar.innerHTML = dateBarHtml();
+    repaintCurrentTab();
+  }));
+  seedIfEmpty();
 }
-
-function openEditUnitModal(unit) {
-  if (!unit) return;
-  openModal(t().editUnit, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().unitName}</span>
-        <input id="unitNameInput" class="inp" value="${esc(unit.name)}" />
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#unitNameInput").value.trim();
-      if (!name) return;
-      await updateDoc(doc(db, "units", unit.id), { name });
-      wrap.remove();
-    });
-  });
+function stopAllListeners() {
+  unsubs.forEach(u => u());
+  unsubs = [];
+  units.length = 0; subUnits.length = 0; allUsers.length = 0;
+  expenseCategories.length = 0; eventTypes.length = 0;
+  tenants.length = 0; rentPayments.length = 0; expenses.length = 0;
+  events.length = 0; eventPayments.length = 0; eventExpenses.length = 0;
+  approvalRequests.length = 0;
+  globalSettings = { hijriOffsetDays: 0 };
 }
-
-function billingOptionsHtml(selected) {
-  return BILLING_TYPES.map(bt => `<option value="${bt}" ${bt === selected ? "selected" : ""}>${esc(t()[bt])}</option>`).join("");
-}
-
-function openAddSubUnitModal(unitId) {
-  openModal(t().addSubUnit, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().subUnitName}</span>
-        <input id="subNameInput" class="inp" />
-      </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().billingType}</span>
-        <select id="subBillingInput" class="inp">${billingOptionsHtml("monthly")}</select>
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#subNameInput").value.trim();
-      const billingType = wrap.querySelector("#subBillingInput").value;
-      if (!name) return;
-      await addDoc(collection(db, "subUnits"), { unitId, name, billingType, createdAt: serverTimestamp() });
-      wrap.remove();
-    });
-  });
-}
-
-function openEditSubUnitModal(sub) {
-  if (!sub) return;
-  openModal(t().editSubUnit, `
-    <div class="flex flex-col gap-4">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().subUnitName}</span>
-        <input id="subNameInput" class="inp" value="${esc(sub.name)}" />
-      </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().billingType}</span>
-        <select id="subBillingInput" class="inp">${billingOptionsHtml(sub.billingType)}</select>
-      </label>
-      <div class="flex justify-end gap-2">
-        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
-        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
-      </div>
-    </div>`, (wrap) => {
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const name = wrap.querySelector("#subNameInput").value.trim();
-      const billingType = wrap.querySelector("#subBillingInput").value;
-      if (!name) return;
-      await updateDoc(doc(db, "subUnits", sub.id), { name, billingType });
-      wrap.remove();
-    });
-  });
-}
-
 async function seedIfEmpty() {
+  if (!isAdmin()) return;
   const snap = await getDocs(collection(db, "units"));
   if (!snap.empty) return;
   const unitRef = await addDoc(collection(db, "units"), { name: "Green Park", createdAt: serverTimestamp() });
@@ -1535,45 +1729,16 @@ async function seedIfEmpty() {
   }
 }
 
-function startUnitsListeners(isAdmin) {
-  if (unsubUnits) return;
-  unsubUnits = onSnapshot(collection(db, "units"), (snap) => {
-    units = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "adminPanel") paintAdminGrid();
-  });
-  unsubSubUnits = onSnapshot(collection(db, "subUnits"), (snap) => {
-    subUnits = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (tab === "adminPanel") paintAdminGrid();
-  });
-  unsubGlobalSettings = onSnapshot(doc(db, "settings", "global"), (snap) => {
-    globalSettings = { hijriOffsetDays: 0, ...(snap.exists() ? snap.data() : {}) };
-    const bar = document.getElementById("dateBar");
-    if (bar) bar.innerHTML = dateBarHtml();
-    if (tab === "adminPanel") paintAdminGrid();
-  });
-  startDashboardListeners();
-  if (isAdmin) seedIfEmpty();
-}
-
-function stopUnitsListeners() {
-  if (unsubUnits) { unsubUnits(); unsubUnits = null; }
-  if (unsubSubUnits) { unsubSubUnits(); unsubSubUnits = null; }
-  if (unsubUsers) { unsubUsers(); unsubUsers = null; }
-  if (unsubGlobalSettings) { unsubGlobalSettings(); unsubGlobalSettings = null; }
-  stopDashboardListeners();
-  units = []; subUnits = []; allUsers = []; globalSettings = { hijriOffsetDays: 0 };
-}
-
 onAuthStateChanged(auth, async (u) => {
   authChecked = true;
   currentUser = u || null;
-  if (!u) { profile = null; profileChecked = true; stopUnitsListeners(); render(); return; }
+  if (!u) { profile = null; profileChecked = true; stopAllListeners(); render(); return; }
   profileChecked = false; render();
   const snap = await getDoc(doc(db, "users", u.uid));
   profile = snap.exists() ? snap.data() : null;
   profileChecked = true;
   render();
-  if (profile) startUnitsListeners(profile.role === "admin");
+  if (profile) startAllListeners();
 });
 
 setInterval(() => {

@@ -12,6 +12,8 @@
   .badge-green{ background:#E7F0EA; color:#1B4332; }
   .badge-gold{ background:#F5EBDF; color:#8a6a3f; }
   .badge-red{ background:#F6E5E5; color:#9B2C2C; }
+  .badge-blue{ background:#E4ECFB; color:#1D4ED8; }
+  .badge-brown{ background:#F1E7DB; color:#8B5A2B; }
   .card { border:1px solid #E4DFD3; background:#fff; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
   .btn { display:inline-flex; align-items:center; gap:6px; border-radius:12px; font-weight:500; padding:8px 14px; font-size:14px; transition:.15s; }
   .btn:active{ transform:scale(.98); }
@@ -31,6 +33,7 @@
   .chip.active{ background:#1B4332; color:#fff; border-color:#1B4332; }
   .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
   .modal-box{ width:100%; max-width:480px; max-height:92vh; overflow-y:auto; background:#fff; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.15); }
+  .txt-income{ color:#1D4ED8; } .txt-expense{ color:#8B5A2B; }
 </style>
 </head>
 <body>
@@ -60,6 +63,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const USERNAME_DOMAIN = "asfb.local";
 
 // ---------------------------------------------------------------------------
 // i18n
@@ -67,15 +71,15 @@ const db = getFirestore(app);
 const STR = {
   en: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "Dashboard", adminPanel: "Admin Panel", dataEntry: "Data Entry", reports: "Reports",
+    dashboard: "Dashboard", adminPanel: "Admin Panel", dataEntry: "Data Entry", reports: "Reports", approvalPending: "Approval Pending",
     admin_r: "Admin", user_r: "User",
-    addUnit: "Add Unit", editUnit: "Edit Unit", unitName: "Unit name",
+    addUnit: "Add Unit", editUnit: "Edit Unit", unitName: "Unit name", eventPrefix: "Event Memo Prefix",
     addSubUnit: "Add Sub Unit", editSubUnit: "Edit Sub Unit", subUnitName: "Sub unit name",
     billingType: "Billing Type", hourly: "Hourly Rent", daily: "Daily Rent", monthly: "Monthly Rent", perEvent: "Per Event Rent",
     save: "Save", cancel: "Cancel", edit: "Edit", delete: "Delete", login: "Log in", email: "Email", password: "Password",
     loading: "Loading…", noProfile: "Your account has no role assigned yet. Ask the Admin to set it up.",
     comingSoon: "This section is coming in the next build phase.",
-    loginError: "Login failed. Check your email and password.",
+    loginError: "Login failed. Check your username/email and password.",
     units: "Units", address: "Address",
     accountDisabled: "Your account has been deactivated. Contact the Admin.",
     settings: "Settings", language: "Language", changePassword: "Change Password",
@@ -90,51 +94,56 @@ const STR = {
     name: "Name", isAdminUser: "Make this user an Admin", active: "Active", inactive: "Inactive",
     permissions: "Permissions (per Sub Unit)", noAccess: "No Access", viewOnly: "View",
     dataAdd: "Data Add", dataEdit: "Data Edit", sendResetEmail: "Send Password Reset Email",
-    resetEmailSent: "Password reset email sent.", userCreateError: "Couldn't create user. Check the email/password.",
+    resetEmailSent: "Password reset email sent.", userCreateError: "Couldn't create user. Check the username/password.",
     deactivate: "Deactivate", activate: "Activate",
     hijriAdjust: "Hijri Date Adjustment", hijriAdjustHint: "Shift the Hijri date shown to everyone by a few days to match local moon-sighting announcements.", days: "days",
     dashboardSummary: "Overview", upcomingEvent: "Upcoming Event", pendingEvents: "Pending Events",
     shopUncollected: "Shop Rent Due", houseUncollected: "House Rent Due", none: "None",
-    profiles: "Profiles", addProfile: "Add Profile", phone: "Phone", rentAmount: "Rent Amount (৳)",
-    collectRent: "Collect Rent", paid: "Paid", due: "Due", dueFor: "Due for",
+    profiles: "Shop/House IDs", addProfile: "Add Profile", phone: "Phone", rentAmount: "Rent Amount (৳)",
+    collectRent: "Collect Rent", paid: "Paid", due: "Due",
     addExpense: "Add Expense", expenseCategory: "Category", amountLabel: "Amount (৳)", details: "Details",
     addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a Sub Unit",
-    noData: "Nothing here yet.", period: "This period",
-    quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.",
+    noData: "Nothing here yet.",
+    quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.", serial: "Serial",
     customerName: "Customer Name", eventType: "Event Type", addType: "Add Type",
     bookingDate: "Booking Date", eventDate: "Event Date", eventTime: "Event Time",
     tableQty: "Table Qty (Lunch)", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
     advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
     balance: "Balance", collected: "Collected", status: "Status",
     pendingStatus: "Pending", doneStatus: "Done", cancelledStatus: "Cancelled",
-    cancelEvent: "Cancel Event", cancelReason: "Reason for cancellation",
+    cancelEvent: "Cancel Event", cancelReason: "Reason for cancellation", deleteEvent: "Delete Event",
+    confirmDeleteEvent: "This will permanently delete this event and all its payment/expense history. Continue?",
     boyWage: "Boy Wage", labourWage: "Labour Wage", otherExpense: "Other", eventExpenseType: "Expense Type",
     payHistory: "Payment History", eventExpenseHistory: "Event Expenses",
     confirmCancel: "This will mark the event as cancelled.",
     selectUnit: "Select a Unit", noAccessMsg: "You don't have access to any Unit/Sub Unit yet. Ask the Admin.",
-    duplicateMemo: "This Memo No. is already used in this Sub Unit. Please use a different one.",
+    duplicateMemo: "This Memo No. is already used in this Sub Unit. Please use a different serial.",
     fillAllFields: "Please fill in all required fields.",
     passwordConfirmTitle: "Confirm Password", passwordConfirmHint: "Enter your password to confirm this action.",
     confirm: "Confirm", wrongPassword: "Incorrect password.",
-    confirmDelete: "This will permanently delete this item. Continue?",
-    expenseCategories: "Expense Categories", eventTypesMgmt: "Event Types",
-    approvalPending: "Approval Pending", approve: "Approve", reject: "Reject", requestedBy: "Requested by",
+    expenseCategories: "Expense Categories", eventTypesMgmt: "Event Types", eventPlacesMgmt: "Event Places",
+    approve: "Approve", reject: "Reject", requestedBy: "Requested by",
     noRequests: "No pending requests.", approvalPendingBadge: "Approval Pending",
     totalCollected: "Total Collected", totalExpense: "Total Expense", transactions: "Transactions",
-    tenantProfile: "Profile", editProfile: "Edit Profile", editEvent: "Edit Event",
-    changes: "Changes",
+    editProfile: "Edit Profile", editEvent: "Edit Event",
+    changes: "Changes", eventPlace: "Event Place", addPlace: "Add Place",
+    otherService: "Other Service Rent", otherServiceNote: "What is this service?",
+    propertyIds: "Shop/House IDs", addPropertyId: "Add ID", propertyIdLabel: "ID (e.g. House 303, Shop-01)",
+    vacant: "Vacant", currentTenant: "Current Tenant", changeTenant: "Change Tenant", addTenantHere: "Add Tenant Profile",
+    tenantHistory: "Tenant History", endedOn: "ended", totalBooking: "Total Booking",
+    usernameLabel: "Username", loginIdLabel: "Username or Email", emailOptionalLabel: "Email (optional, can add later)",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
-    dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", dataEntry: "ডেটা এন্ট্রি", reports: "রিপোর্ট",
+    dashboard: "ড্যাশবোর্ড", adminPanel: "অ্যাডমিন প্যানেল", dataEntry: "ডেটা এন্ট্রি", reports: "রিপোর্ট", approvalPending: "অনুমোদনের অপেক্ষায়",
     admin_r: "অ্যাডমিন", user_r: "ইউজার",
-    addUnit: "ইউনিট যোগ করুন", editUnit: "ইউনিট এডিট করুন", unitName: "ইউনিটের নাম",
+    addUnit: "ইউনিট যোগ করুন", editUnit: "ইউনিট এডিট করুন", unitName: "ইউনিটের নাম", eventPrefix: "ইভেন্ট মেমো প্রিফিক্স",
     addSubUnit: "সাব ইউনিট যোগ করুন", editSubUnit: "সাব ইউনিট এডিট করুন", subUnitName: "সাব ইউনিটের নাম",
     billingType: "বিলিং ধরন", hourly: "ঘণ্টাভিত্তিক ভাড়া", daily: "দৈনিক ভাড়া", monthly: "মাসিক ভাড়া", perEvent: "প্রতি ইভেন্ট ভাড়া",
     save: "সংরক্ষণ করুন", cancel: "বাতিল করুন", edit: "এডিট", delete: "ডিলিট", login: "লগইন", email: "ইমেইল", password: "পাসওয়ার্ড",
     loading: "লোড হচ্ছে…", noProfile: "তোমার অ্যাকাউন্টে এখনো কোনো role সেট করা হয়নি। Admin-কে বলো সেট করে দিতে।",
     comingSoon: "এই অংশ পরের ধাপে যোগ হবে।",
-    loginError: "লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
+    loginError: "লগইন ব্যর্থ হয়েছে। ইউজারনেম/ইমেইল ও পাসওয়ার্ড আবার চেক করো।",
     units: "ইউনিট", address: "ঠিকানা",
     accountDisabled: "তোমার অ্যাকাউন্ট নিষ্ক্রিয় করা হয়েছে। Admin-এর সাথে যোগাযোগ করো।",
     settings: "সেটিংস", language: "ভাষা", changePassword: "পাসওয়ার্ড পরিবর্তন",
@@ -149,39 +158,44 @@ const STR = {
     name: "নাম", isAdminUser: "এই ইউজারকে Admin বানাও", active: "সক্রিয়", inactive: "নিষ্ক্রিয়",
     permissions: "পারমিশন (প্রতি সাব ইউনিট)", noAccess: "কোনো অ্যাক্সেস নেই", viewOnly: "দেখা",
     dataAdd: "ডেটা যোগ", dataEdit: "ডেটা এডিট", sendResetEmail: "পাসওয়ার্ড রিসেট ইমেইল পাঠাও",
-    resetEmailSent: "পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে।", userCreateError: "ইউজার তৈরি করা যায়নি। ইমেইল/পাসওয়ার্ড চেক করো।",
+    resetEmailSent: "পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে।", userCreateError: "ইউজার তৈরি করা যায়নি। ইউজারনেম/পাসওয়ার্ড চেক করো।",
     deactivate: "নিষ্ক্রিয় করো", activate: "সক্রিয় করো",
     hijriAdjust: "হিজরি তারিখ সমন্বয়", hijriAdjustHint: "সবার জন্য দেখানো হিজরি তারিখ কয়েক দিন এদিক-ওদিক করো, স্থানীয় চাঁদ দেখা ঘোষণার সাথে মেলাতে।", days: "দিন",
     dashboardSummary: "সারসংক্ষেপ", upcomingEvent: "আসন্ন ইভেন্ট", pendingEvents: "পেন্ডিং ইভেন্ট",
     shopUncollected: "দোকানের বাকি ভাড়া", houseUncollected: "বাসার বাকি ভাড়া", none: "নেই",
-    profiles: "প্রোফাইল", addProfile: "প্রোফাইল যোগ করুন", phone: "ফোন নম্বর", rentAmount: "ভাড়া (৳)",
-    collectRent: "ভাড়া আদায়", paid: "আদায় হয়েছে", due: "বাকি", dueFor: "বাকি মাস:",
+    profiles: "দোকান/বাসা আইডি", addProfile: "প্রোফাইল যোগ করুন", phone: "ফোন নম্বর", rentAmount: "ভাড়া (৳)",
+    collectRent: "ভাড়া আদায়", paid: "আদায় হয়েছে", due: "বাকি",
     addExpense: "খরচ যোগ করুন", expenseCategory: "খাত", amountLabel: "পরিমাণ (৳)", details: "বিবরণ",
     addCategory: "খাত যোগ করুন", newCategoryName: "নতুন খাতের নাম", selectSubUnit: "একটি সাব ইউনিট বাছাই করুন",
-    noData: "এখনো কিছু যোগ করা হয়নি।", period: "এই মেয়াদে",
-    quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং",
+    noData: "এখনো কিছু যোগ করা হয়নি।",
+    quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং", serial: "সিরিয়াল",
     customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন",
     bookingDate: "বুকিং তারিখ", eventDate: "ইভেন্টের তারিখ", eventTime: "ইভেন্টের সময়",
     tableQty: "টেবিল সংখ্যা (লাঞ্চ)", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
     advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
     balance: "বাকি আছে", collected: "আদায়কৃত", status: "অবস্থা",
     pendingStatus: "পেন্ডিং", doneStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
-    cancelEvent: "ইভেন্ট বাতিল করুন", cancelReason: "বাতিলের কারণ",
+    cancelEvent: "ইভেন্ট বাতিল করুন", cancelReason: "বাতিলের কারণ", deleteEvent: "ইভেন্ট ডিলিট করুন",
+    confirmDeleteEvent: "এতে এই ইভেন্ট ও এর সব পেমেন্ট/খরচের ইতিহাস স্থায়ীভাবে মুছে যাবে। এগোবেন?",
     boyWage: "বয় মজুরি", labourWage: "শ্রমিক মজুরি", otherExpense: "অন্যান্য", eventExpenseType: "খরচের ধরন",
     payHistory: "পেমেন্টের ইতিহাস", eventExpenseHistory: "ইভেন্টের খরচ",
     confirmCancel: "এতে ইভেন্টটি বাতিল হিসেবে চিহ্নিত হবে।",
     selectUnit: "একটি ইউনিট বাছাই করুন", noAccessMsg: "তোমার এখনো কোনো Unit/Sub Unit-এ অ্যাক্সেস নেই। Admin-কে বলো।",
-    duplicateMemo: "এই মেমো নং এই সাব ইউনিটে আগে থেকেই ব্যবহৃত হয়েছে। অন্য একটা দাও।",
+    duplicateMemo: "এই মেমো নং এই সাব ইউনিটে আগে থেকেই ব্যবহৃত হয়েছে। অন্য সিরিয়াল দাও।",
     fillAllFields: "সব আবশ্যক ঘর পূরণ করো।",
     passwordConfirmTitle: "পাসওয়ার্ড নিশ্চিত করো", passwordConfirmHint: "এই কাজটি নিশ্চিত করতে তোমার পাসওয়ার্ড দাও।",
     confirm: "নিশ্চিত করো", wrongPassword: "পাসওয়ার্ড ভুল।",
-    confirmDelete: "এতে এই আইটেমটা স্থায়ীভাবে মুছে যাবে। এগোবেন?",
-    expenseCategories: "খরচের খাত", eventTypesMgmt: "ইভেন্ট টাইপ",
-    approvalPending: "অনুমোদনের অপেক্ষায়", approve: "অনুমোদন করো", reject: "প্রত্যাখ্যান করো", requestedBy: "অনুরোধ করেছে",
+    expenseCategories: "খরচের খাত", eventTypesMgmt: "ইভেন্ট টাইপ", eventPlacesMgmt: "ইভেন্ট প্লেস",
+    approve: "অনুমোদন করো", reject: "প্রত্যাখ্যান করো", requestedBy: "অনুরোধ করেছে",
     noRequests: "কোনো পেন্ডিং অনুরোধ নেই।", approvalPendingBadge: "অনুমোদনের অপেক্ষায়",
     totalCollected: "মোট আদায়", totalExpense: "মোট খরচ", transactions: "লেনদেন",
-    tenantProfile: "প্রোফাইল", editProfile: "প্রোফাইল এডিট করুন", editEvent: "ইভেন্ট এডিট করুন",
-    changes: "পরিবর্তন",
+    editProfile: "প্রোফাইল এডিট করুন", editEvent: "ইভেন্ট এডিট করুন",
+    changes: "পরিবর্তন", eventPlace: "ইভেন্ট প্লেস", addPlace: "প্লেস যোগ করুন",
+    otherService: "আদার সার্ভিস রেন্ট", otherServiceNote: "এই সার্ভিসটা কী?",
+    propertyIds: "দোকান/বাসা আইডি", addPropertyId: "আইডি যোগ করুন", propertyIdLabel: "আইডি (যেমন: House 303, Shop-01)",
+    vacant: "খালি", currentTenant: "বর্তমান ভাড়াটিয়া", changeTenant: "ভাড়াটিয়া পরিবর্তন", addTenantHere: "ভাড়াটিয়া যোগ করুন",
+    tenantHistory: "ভাড়াটিয়ার ইতিহাস", endedOn: "শেষ", totalBooking: "মোট বুকিং",
+    usernameLabel: "ইউজারনেম", loginIdLabel: "ইউজারনেম বা ইমেইল", emailOptionalLabel: "ইমেইল (ঐচ্ছিক, পরে যোগ করা যাবে)",
   },
 };
 
@@ -190,7 +204,7 @@ function todayISO() { return new Date().toISOString().slice(0, 10); }
 function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
 // ---------------------------------------------------------------------------
-// Local display settings (per-device)
+// Local display settings
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = "asfb_settings";
 function loadSettings() {
@@ -271,7 +285,6 @@ const icons = {
   report: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>`,
   plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`,
   x: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
-  globe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>`,
   logout: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
   shield: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B08968" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
   gear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
@@ -281,6 +294,7 @@ const icons = {
   users: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
   bell: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
   check: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>`,
+  pin: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
 };
 
 // ---------------------------------------------------------------------------
@@ -296,7 +310,7 @@ let profileChecked = false;
 let units = [], subUnits = [];
 let globalSettings = { hijriOffsetDays: 0 };
 let allUsers = [];
-let expenseCategories = [], eventTypes = [];
+let expenseCategories = [], eventTypes = [], eventPlaces = [], propertyIds = [];
 let tenants = [], rentPayments = [], expenses = [];
 let events = [], eventPayments = [], eventExpenses = [];
 let approvalRequests = [];
@@ -329,8 +343,8 @@ function renderLogin() {
       </div>
       <form id="loginForm" class="flex flex-col gap-4">
         <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium" style="color:#6B6659">${t().email}</span>
-          <input type="email" required id="loginEmail" class="inp" />
+          <span class="font-medium" style="color:#6B6659">${t().loginIdLabel}</span>
+          <input type="text" required id="loginId" class="inp" />
         </label>
         <label class="flex flex-col gap-1 text-sm">
           <span class="font-medium" style="color:#6B6659">${t().password}</span>
@@ -347,10 +361,16 @@ function renderLogin() {
     const errBox = document.getElementById("loginErr");
     errBox.textContent = "";
     btn.textContent = t().loading;
+    const idVal = document.getElementById("loginId").value.trim();
+    const pw = document.getElementById("loginPassword").value;
     try {
-      await signInWithEmailAndPassword(auth,
-        document.getElementById("loginEmail").value.trim(),
-        document.getElementById("loginPassword").value);
+      let emailToUse = idVal;
+      if (!idVal.includes("@")) {
+        const idxSnap = await getDoc(doc(db, "usernameIndex", idVal.toLowerCase()));
+        if (!idxSnap.exists()) throw new Error("no-user");
+        emailToUse = idxSnap.data().email;
+      }
+      await signInWithEmailAndPassword(auth, emailToUse, pw);
     } catch (e) {
       errBox.textContent = t().loginError;
       btn.textContent = t().login;
@@ -414,7 +434,7 @@ async function performEdit(targetCollection, targetId, changes, subUnitId) {
   }
   await addDoc(collection(db, "approvalRequests"), {
     targetCollection, targetId, changes, subUnitId,
-    requestedBy: currentUser.uid, requestedByName: profile.name || currentUser.email,
+    requestedBy: currentUser.uid, requestedByName: profile.name || profile.username || currentUser.email,
     status: "pending", createdAt: serverTimestamp(),
   });
   return "pending";
@@ -424,7 +444,7 @@ function pendingApprovalFor(targetId) {
 }
 
 // ---------------------------------------------------------------------------
-// Password confirmation (for Admin edit/delete of settings)
+// Password confirmation
 // ---------------------------------------------------------------------------
 function withPasswordConfirm(onConfirmed) {
   openModal(t().passwordConfirmTitle, `
@@ -484,6 +504,7 @@ const TABS = [
   { key: "dataEntry", icon: "store" },
   { key: "reports", icon: "report" },
   { key: "adminPanel", icon: "gear", adminOnly: true },
+  { key: "approvalPending", icon: "bell", adminOnly: true },
 ];
 
 function renderApp() {
@@ -491,7 +512,7 @@ function renderApp() {
   const roleLabel = admin ? t().admin_r : t().user_r;
   const visibleTabs = TABS.filter(tb => !tb.adminOnly || admin);
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
-  const pendingCount = admin ? approvalRequests.filter(r => r.status === "pending").length : 0;
+  const pendingCount = approvalRequests.filter(r => r.status === "pending").length;
 
   root.innerHTML = `
   <div class="min-h-screen">
@@ -512,7 +533,7 @@ function renderApp() {
         ${visibleTabs.map(tb => `
           <button data-tab="${tb.key}" class="tab-btn ${tab === tb.key ? "active" : ""}">
             ${icons[tb.icon]} ${esc(t()[tb.key])}
-            ${tb.key === "adminPanel" && pendingCount ? `<span class="badge badge-red" style="margin-left:2px">${pendingCount}</span>` : ""}
+            ${tb.key === "approvalPending" ? `<span class="badge ${pendingCount ? "badge-red" : "badge-gray"}" style="margin-left:2px">${pendingCount}</span>` : ""}
           </button>`).join("")}
       </div>
     </div>
@@ -539,6 +560,7 @@ function renderTabContent() {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const el = document.getElementById("tabContent");
   if (tab === "adminPanel" && isAdmin()) { renderAdminPanel(el); return; }
+  if (tab === "approvalPending" && isAdmin()) { renderApprovalTab(el); return; }
   if (tab === "dashboard") { renderDashboard(el); return; }
   if (tab === "dataEntry") { renderDataEntry(el); return; }
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
@@ -623,11 +645,12 @@ function openSettingsModal() {
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
+function eventTotalOwed(ev) { return (ev.totalRentAmount || 0) + (ev.otherServiceAmount || 0); }
 function eventBalance(ev) {
   const pays = eventPayments.filter(p => p.eventId === ev.id);
   const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
   const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
-  return (ev.totalRentAmount || 0) - paid + refunded;
+  return eventTotalOwed(ev) - paid + refunded;
 }
 function eventPriority(ev) {
   if (ev.status === "cancelled") return 2;
@@ -640,6 +663,7 @@ function sortedEvents(list) {
     return (a.eventDate || "") < (b.eventDate || "") ? -1 : 1;
   });
 }
+function placeName(placeId) { return eventPlaces.find(p => p.id === placeId)?.name || "—"; }
 
 function computeDashboardStats() {
   const todayStr = todayISO();
@@ -707,12 +731,13 @@ function paintDashboardCard() {
     <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().pendingEvents}</h3>
     <div class="flex flex-col gap-2">
     ${pendingList.map(e => `
-      <div class="card p-3 flex items-center justify-between" data-openevent="${e.id}" style="cursor:pointer">
-        <div>
+      <div class="card p-3" data-openevent="${e.id}" style="cursor:pointer">
+        <div class="flex items-center justify-between mb-1">
           <div class="text-sm font-medium">${esc(e.customerName)} <span class="text-xs" style="color:#B08968">${esc(e.memoNo)}</span></div>
-          <div class="text-xs" style="color:#8a8578">${esc(unitSubLabel(e.subUnitId))} · ${esc(e.eventDate || "")}</div>
+          <span class="badge badge-gold">${t().balance}: ৳${Math.max(eventBalance(e),0).toLocaleString()}</span>
         </div>
-        <span class="badge badge-gold">৳${Math.max(eventBalance(e),0).toLocaleString()}</span>
+        <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")}</div>
+        <div class="text-xs mt-1"><span style="color:#8a8578">${t().totalBooking}: </span><span class="txt-income font-medium">৳${eventTotalOwed(e).toLocaleString()}</span></div>
       </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
     </div>`;
   listBox.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
@@ -725,7 +750,7 @@ function unitSubLabel(subUnitId) {
 }
 
 // ---------------------------------------------------------------------------
-// Data Entry: Unit -> Sub Unit -> (Tenants or Events)
+// Data Entry: Unit -> Sub Unit -> (Property IDs or Events)
 // ---------------------------------------------------------------------------
 let deUnit = null, deSub = null;
 
@@ -767,43 +792,125 @@ function paintDataEntryBody() {
   if (!deSub) { body.innerHTML = `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`; return; }
   const su = subUnits.find(s => s.id === deSub);
   if (su && su.billingType === "perEvent") paintEventsBody(body, su);
-  else paintTenantsBody(body, su);
+  else paintPropertiesBody(body, su);
 }
 
-// --- Shop/House tenants ---
+// --- Shop/House: Property IDs ---
 function tenantPaidThisMonth(tenant) {
   const now = new Date();
   return rentPayments.some(p => p.tenantId === tenant.id && p.month === now.getMonth() + 1 && p.year === now.getFullYear());
 }
-function paintTenantsBody(body, su) {
-  const list = tenants.filter(tn => tn.subUnitId === deSub);
-  const add = canAdd(deSub);
+function activeTenantFor(propertyId) { return tenants.find(t => t.propertyId === propertyId && t.active !== false); }
+
+function paintPropertiesBody(body, su) {
+  const list = propertyIds.filter(p => p.subUnitId === deSub);
   body.innerHTML = `
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-sm font-semibold" style="color:#1B4332">${t().profiles}</h3>
-      ${add ? `<button id="addTenantBtn" class="btn btn-primary" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addProfile}</button>` : ""}
+      <h3 class="text-sm font-semibold" style="color:#1B4332">${t().propertyIds}</h3>
     </div>
-    <div id="tenantsList" class="flex flex-col gap-2"></div>`;
+    <div id="propsList" class="flex flex-col gap-2"></div>`;
   const now = new Date();
-  document.getElementById("tenantsList").innerHTML = list.map(tn => {
-    const paid = tenantPaidThisMonth(tn);
+  document.getElementById("propsList").innerHTML = list.map(p => {
+    const tn = activeTenantFor(p.id);
+    const paid = tn ? tenantPaidThisMonth(tn) : false;
     return `
-    <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0;cursor:pointer" data-opentenant="${tn.id}">
+    <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0;cursor:pointer" data-openprop="${p.id}">
       <div>
-        <div class="text-sm font-medium">${esc(tn.name)}</div>
-        <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
+        <div class="text-sm font-medium">${esc(p.label)}</div>
+        <div class="text-xs" style="color:#8a8578">${tn ? esc(tn.name) : t().vacant}</div>
       </div>
-      <span class="badge ${paid ? "badge-green" : "badge-gold"}">${paid ? t().paid : `${t().due} · ${GREG_MONTHS_FULL[now.getMonth()]}`}</span>
+      ${tn ? `<span class="badge ${paid ? "badge-blue" : "badge-gold"}">${paid ? t().paid : `${t().due} · ${GREG_MONTHS_FULL[now.getMonth()]}`}</span>` : `<span class="badge badge-gray">${t().vacant}</span>`}
     </div>`;
   }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
-  const addBtn = document.getElementById("addTenantBtn");
-  if (addBtn) addBtn.addEventListener("click", () => openTenantModal(deSub));
-  body.querySelectorAll("[data-opentenant]").forEach(row => row.addEventListener("click", () => openTenantDetailModal(row.getAttribute("data-opentenant"))));
+  body.querySelectorAll("[data-openprop]").forEach(row => row.addEventListener("click", () => openPropertyDetailModal(row.getAttribute("data-openprop"))));
 }
 
-function openTenantModal(subUnitId, existing) {
+function openPropertyDetailModal(propertyId) {
+  const wrap = openModal("…", `<div id="propDetailBody"></div>`, () => {});
+  wrap.dataset.propModal = propertyId;
+  paintPropertyDetailBody(propertyId);
+}
+
+function paintPropertyDetailBody(propertyId) {
+  const box = document.getElementById("propDetailBody");
+  if (!box) return;
+  const prop = propertyIds.find(p => p.id === propertyId);
+  if (!prop) return;
+  box.closest(".modal-box").querySelector("h3").textContent = prop.label;
+  const add = canAdd(prop.subUnitId), edit = canEdit(prop.subUnitId);
+  const tn = activeTenantFor(propertyId);
+  const pastTenants = tenants.filter(x => x.propertyId === propertyId && x.active === false).sort((a, b) => (a.endDate || "") < (b.endDate || "") ? 1 : -1);
+  const myPays = rentPayments.filter(p => p.propertyId === propertyId);
+  const myExps = expenses.filter(x => x.propertyId === propertyId);
+  const totalCollected = myPays.reduce((s, p) => s + p.amount, 0);
+  const totalExpense = myExps.reduce((s, x) => s + x.amount, 0);
+  const paid = tn ? tenantPaidThisMonth(tn) : false;
+  const txns = [
+    ...myPays.map(p => ({ id: p.id, coll: "rentPayments", date: p.paidDate, label: `${t().collectRent} — ${esc(p.tenantName || "")}`, amount: p.amount, positive: true })),
+    ...myExps.map(x => ({ id: x.id, coll: "expenses", date: x.date, label: (expenseCategories.find(c => c.id === x.categoryId)?.name || "—") + (x.details ? " · " + x.details : ""), amount: -x.amount, positive: false })),
+  ].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  box.innerHTML = `
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalCollected}</div>
+        <div class="text-base font-semibold txt-income">৳${totalCollected.toLocaleString()}</div>
+      </div>
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalExpense}</div>
+        <div class="text-base font-semibold txt-expense">৳${totalExpense.toLocaleString()}</div>
+      </div>
+    </div>
+    <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().currentTenant}</h4>
+    ${tn ? `
+      <div class="rounded-xl p-3 mb-3" style="background:#F7F5F0">
+        <div class="text-sm font-medium">${esc(tn.name)} ${pendingApprovalFor(tn.id) ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
+        <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
+        <div class="text-xs mt-1"><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()}</div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-4">
+        ${edit ? `<button id="propEditTenantBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${icons.pencil}${t().editProfile}</button>` : ""}
+        ${add && !paid ? `<button id="propCollectBtn" class="btn btn-gold" style="padding:5px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
+        ${add ? `<button id="propExpBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>` : ""}
+        ${add ? `<button id="propChangeBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${t().changeTenant}</button>` : ""}
+      </div>` : `
+      <p class="text-xs mb-3" style="color:#8a8578">${t().vacant}</p>
+      ${add ? `<button id="propAddTenantBtn" class="btn btn-primary mb-4" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addTenantHere}</button>` : ""}
+    `}
+    ${pastTenants.length ? `
+      <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().tenantHistory}</h4>
+      <ul class="flex flex-col gap-1.5 mb-4">
+        ${pastTenants.map(p => `<li class="text-xs rounded-lg px-3 py-1.5" style="background:#F7F5F0"><span class="font-medium">${esc(p.name)}</span> — ${t().endedOn} ${esc(p.endDate || "")}</li>`).join("")}
+      </ul>` : ""}
+    <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().transactions}</h4>
+    ${txns.length ? `<ul class="flex flex-col gap-1.5">${txns.map(x => `
+      <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+        <span>${esc(x.label)} · ${esc(x.date || "")}</span>
+        <span class="flex items-center gap-2">
+          <span class="${x.positive ? "txt-income" : "txt-expense"}" style="font-weight:600">${x.positive ? "" : "-"}৳${Math.abs(x.amount).toLocaleString()}</span>
+          ${edit ? `<button data-edittxn="${x.coll}:${x.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+        </span>
+      </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}`;
+
+  const editBtn = box.querySelector("#propEditTenantBtn");
+  if (editBtn) editBtn.addEventListener("click", () => openTenantModal(prop, tn));
+  const collectBtn = box.querySelector("#propCollectBtn");
+  if (collectBtn) collectBtn.addEventListener("click", () => openCollectRentModal(prop, tn));
+  const expBtn = box.querySelector("#propExpBtn");
+  if (expBtn) expBtn.addEventListener("click", () => openPropertyExpenseModal(prop, tn));
+  const changeBtn = box.querySelector("#propChangeBtn");
+  if (changeBtn) changeBtn.addEventListener("click", () => openChangeTenantModal(prop, tn));
+  const addTenantBtn = box.querySelector("#propAddTenantBtn");
+  if (addTenantBtn) addTenantBtn.addEventListener("click", () => openTenantModal(prop, null));
+  box.querySelectorAll("[data-edittxn]").forEach(b => b.addEventListener("click", () => {
+    const [coll, id] = b.getAttribute("data-edittxn").split(":");
+    openEditTxnModal(coll, id, prop.subUnitId);
+  }));
+}
+
+function openTenantModal(prop, existing) {
   const isEdit = !!existing;
-  openModal(isEdit ? t().editProfile : t().addProfile, `
+  openModal(isEdit ? t().editProfile : t().addTenantHere, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().name}</span>
@@ -837,77 +944,44 @@ function openTenantModal(subUnitId, existing) {
         rentAmount: Number(wrap.querySelector("#tnRent").value) || 0,
       };
       if (isEdit) {
-        await performEdit("tenants", existing.id, data, subUnitId);
+        await performEdit("tenants", existing.id, data, prop.subUnitId);
       } else {
-        await addDoc(collection(db, "tenants"), { subUnitId, ...data, active: true, createdAt: serverTimestamp() });
+        await addDoc(collection(db, "tenants"), { subUnitId: prop.subUnitId, propertyId: prop.id, ...data, active: true, createdAt: serverTimestamp() });
       }
       wrap.remove();
     });
   });
 }
 
-function openTenantDetailModal(tenantId) {
-  const wrap = openModal("…", `<div id="tenantDetailBody"></div>`, () => {});
-  wrap.dataset.tenantModal = tenantId;
-  paintTenantDetailBody(tenantId);
+function openChangeTenantModal(prop, oldTenant) {
+  openModal(t().changeTenant, `
+    <div class="flex flex-col gap-4">
+      <p class="text-sm" style="color:#6B6659">${esc(oldTenant.name)} → ?</p>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().name}</span><input id="ntName" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().address}</span><input id="ntAddress" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().phone}</span><input id="ntPhone" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().rentAmount}</span><input id="ntRent" type="number" class="inp" value="${Number(oldTenant.rentAmount || 0)}" /></label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const name = wrap.querySelector("#ntName").value.trim();
+      if (!name) return;
+      await performEdit("tenants", oldTenant.id, { active: false, endDate: todayISO() }, prop.subUnitId);
+      await addDoc(collection(db, "tenants"), {
+        subUnitId: prop.subUnitId, propertyId: prop.id,
+        name, address: wrap.querySelector("#ntAddress").value.trim(), phone: wrap.querySelector("#ntPhone").value.trim(),
+        rentAmount: Number(wrap.querySelector("#ntRent").value) || 0, active: true, createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
 }
 
-function paintTenantDetailBody(tenantId) {
-  const box = document.getElementById("tenantDetailBody");
-  if (!box) return;
-  const tn = tenants.find(x => x.id === tenantId);
-  if (!tn) return;
-  box.closest(".modal-box").querySelector("h3").textContent = tn.name;
-  const add = canAdd(tn.subUnitId), edit = canEdit(tn.subUnitId);
-  const myPays = rentPayments.filter(p => p.tenantId === tenantId);
-  const myExps = expenses.filter(x => x.tenantId === tenantId);
-  const totalCollected = myPays.reduce((s, p) => s + p.amount, 0);
-  const totalExpense = myExps.reduce((s, x) => s + x.amount, 0);
-  const paid = tenantPaidThisMonth(tn);
-  const pendingReq = pendingApprovalFor(tenantId);
-  const txns = [
-    ...myPays.map(p => ({ date: p.paidDate, label: t().collectRent, amount: p.amount, positive: true })),
-    ...myExps.map(x => ({ date: x.date, label: (expenseCategories.find(c => c.id === x.categoryId)?.name || "—") + (x.details ? " · " + x.details : ""), amount: -x.amount, positive: false })),
-  ].sort((a, b) => (a.date < b.date ? 1 : -1));
-
-  box.innerHTML = `
-    ${pendingReq ? `<div class="badge badge-gold mb-3">${t().approvalPendingBadge}</div>` : ""}
-    <div class="grid grid-cols-2 gap-2 text-sm mb-3">
-      <div><span style="color:#8a8578">${t().phone}: </span>${esc(tn.phone || "—")}</div>
-      <div><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()}</div>
-      <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(tn.address || "—")}</div>
-    </div>
-    ${edit ? `<button id="tnEditBtn" class="btn btn-outline mb-4" style="padding:5px 10px;font-size:12px">${icons.pencil}${t().editProfile}</button>` : ""}
-    <div class="grid grid-cols-2 gap-3 mb-4">
-      <div class="rounded-xl p-3" style="background:#F7F5F0">
-        <div class="text-xs" style="color:#8a8578">${t().totalCollected}</div>
-        <div class="text-base font-semibold" style="color:#1B4332">৳${totalCollected.toLocaleString()}</div>
-      </div>
-      <div class="rounded-xl p-3" style="background:#F7F5F0">
-        <div class="text-xs" style="color:#8a8578">${t().totalExpense}</div>
-        <div class="text-base font-semibold" style="color:#1B4332">৳${totalExpense.toLocaleString()}</div>
-      </div>
-    </div>
-    <div class="flex flex-wrap gap-2 mb-4">
-      ${add && !paid ? `<button id="tnCollectBtn" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
-      ${add ? `<button id="tnExpBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>` : ""}
-    </div>
-    <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().transactions}</h4>
-    ${txns.length ? `<ul class="flex flex-col gap-1.5">${txns.map(x => `
-      <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
-        <span>${esc(x.label)} · ${esc(x.date || "")}</span>
-        <span style="font-weight:600;color:${x.positive ? "#1B4332" : "#9B2C2C"}">${x.positive ? "" : "-"}৳${Math.abs(x.amount).toLocaleString()}</span>
-      </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}`;
-
-  const editBtn = box.querySelector("#tnEditBtn");
-  if (editBtn) editBtn.addEventListener("click", () => openTenantModal(tn.subUnitId, tn));
-  const collectBtn = box.querySelector("#tnCollectBtn");
-  if (collectBtn) collectBtn.addEventListener("click", () => openCollectRentModal(tn));
-  const expBtn = box.querySelector("#tnExpBtn");
-  if (expBtn) expBtn.addEventListener("click", () => openTenantExpenseModal(tn));
-}
-
-function openCollectRentModal(tenant) {
+function openCollectRentModal(prop, tenant) {
   openModal(`${t().collectRent} — ${tenant.name}`, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
@@ -923,7 +997,7 @@ function openCollectRentModal(tenant) {
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const now = new Date();
       await addDoc(collection(db, "rentPayments"), {
-        tenantId: tenant.id, subUnitId: tenant.subUnitId, tenantName: tenant.name,
+        tenantId: tenant.id, propertyId: prop.id, subUnitId: prop.subUnitId, tenantName: tenant.name,
         month: now.getMonth() + 1, year: now.getFullYear(),
         amount: Number(wrap.querySelector("#rpAmount").value) || 0,
         paidDate: todayISO(), createdAt: serverTimestamp(),
@@ -933,8 +1007,8 @@ function openCollectRentModal(tenant) {
   });
 }
 
-function openTenantExpenseModal(tenant) {
-  const cats = expenseCategories.filter(c => c.subUnitId === tenant.subUnitId);
+function openPropertyExpenseModal(prop, tenant) {
+  const cats = expenseCategories.filter(c => c.subUnitId === prop.subUnitId);
   openModal(t().addExpense, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
@@ -961,7 +1035,7 @@ function openTenantExpenseModal(tenant) {
       const amount = Number(wrap.querySelector("#exAmount").value) || 0;
       if (!amount) return;
       await addDoc(collection(db, "expenses"), {
-        subUnitId: tenant.subUnitId, tenantId: tenant.id, tenantName: tenant.name,
+        subUnitId: prop.subUnitId, propertyId: prop.id, tenantId: tenant?.id || null, tenantName: tenant?.name || "",
         categoryId: wrap.querySelector("#exCat").value,
         amount, details: wrap.querySelector("#exDetails").value.trim(),
         date: todayISO(), createdAt: serverTimestamp(),
@@ -971,13 +1045,46 @@ function openTenantExpenseModal(tenant) {
   });
 }
 
+function openEditTxnModal(coll, id, subUnitId) {
+  const list = coll === "rentPayments" ? rentPayments : coll === "expenses" ? expenses : coll === "eventPayments" ? eventPayments : eventExpenses;
+  const item = list.find(x => x.id === id);
+  if (!item) return;
+  const dateField = coll === "rentPayments" ? "paidDate" : coll === "expenses" ? "date" : coll === "eventPayments" ? "paidDate" : null;
+  openModal(t().edit, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="txnAmount" type="number" class="inp" value="${Number(item.amount || 0)}" />
+      </label>
+      ${dateField ? `<label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">Date</span><input id="txnDate" type="date" class="inp" value="${item[dateField] || todayISO()}" /></label>` : ""}
+      ${item.details !== undefined ? `<label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().details}</span><input id="txnDetails" class="inp" value="${esc(item.details || "")}" /></label>` : ""}
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const changes = { amount: Number(wrap.querySelector("#txnAmount").value) || 0 };
+      if (dateField) changes[dateField] = wrap.querySelector("#txnDate").value;
+      const detailsInput = wrap.querySelector("#txnDetails");
+      if (detailsInput) changes.details = detailsInput.value.trim();
+      await performEdit(coll, id, changes, subUnitId);
+      wrap.remove();
+    });
+  });
+}
+
 // --- Events ---
-function nextMemoSuggestion(subUnitId) {
+function autoPrefix(name) { return (name || "EV").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "EV"; }
+function memoPrefixFor(subUnitId, eventDateStr) {
   const su = subUnits.find(s => s.id === subUnitId);
   const u = units.find(x => x.id === su?.unitId);
-  const prefix = (u?.name || "EVT").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "EV";
-  const n = events.filter(e => e.subUnitId === subUnitId).length + 1;
-  return `${prefix}-EVT-${String(n).padStart(4, "0")}`;
+  const prefix = (u?.eventPrefix || autoPrefix(u?.name)).toUpperCase();
+  const d = eventDateStr ? new Date(eventDateStr + "T00:00:00") : new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${prefix}-EVT-${yy}/${mm}-`;
 }
 function memoTaken(subUnitId, memoNo, excludeId) {
   return events.some(e => e.subUnitId === subUnitId && e.id !== excludeId && (e.memoNo || "").toLowerCase() === memoNo.toLowerCase());
@@ -996,7 +1103,7 @@ function paintEventsBody(body, su) {
   if (bookBtn) bookBtn.addEventListener("click", () => openBookEventModal(deSub));
   document.getElementById("eventsListBox").innerHTML = list.map(e => {
     const balance = eventBalance(e);
-    const tone = e.status === "cancelled" ? "badge-gray" : balance <= 0 ? "badge-green" : "badge-gold";
+    const tone = e.status === "cancelled" ? "badge-gray" : balance <= 0 ? "badge-blue" : "badge-gold";
     const statusText = e.status === "cancelled" ? t().cancelledStatus : balance <= 0 ? t().doneStatus : t().pendingStatus;
     const pendingReq = pendingApprovalFor(e.id);
     return `
@@ -1005,7 +1112,7 @@ function paintEventsBody(body, su) {
         <div>
           <div class="text-sm font-semibold" style="color:#1B4332">${esc(e.customerName)} <span class="text-xs font-normal" style="color:#B08968">${esc(e.memoNo)}</span>
           ${pendingReq ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
-          <div class="text-xs" style="color:#8a8578">${esc(e.eventDate || "")} ${esc(e.eventTime || "")} · ${t().tableQty}: ${e.tableQty || 0} · ${t().boyQty}: ${e.boyQty || 0}</div>
+          <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
         </div>
         <span class="badge ${tone}">${statusText} · ৳${Math.max(balance, 0).toLocaleString()}</span>
       </div>
@@ -1026,12 +1133,16 @@ function eventTypeChipsHtml(selectedIds) {
 function openBookEventModal(subUnitId, existing) {
   const isEdit = !!existing;
   let selected = existing ? [...(existing.eventTypeIds || [])] : [];
-  const memoSuggestion = existing ? existing.memoNo : nextMemoSuggestion(subUnitId);
+  let currentPrefix = memoPrefixFor(subUnitId, existing?.eventDate || todayISO());
+  const serialPrefill = existing ? (existing.memoNo.startsWith(currentPrefix) ? existing.memoNo.slice(currentPrefix.length) : existing.memoNo) : "";
   openModal(isEdit ? t().editEvent : t().bookEvent, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().memoNo}</span>
-        <input id="evMemo" class="inp" value="${esc(memoSuggestion)}" />
+        <div class="flex items-center gap-2">
+          <span id="memoPrefixSpan" class="text-sm font-mono" style="color:#8a8578">${esc(currentPrefix)}</span>
+          <input id="evSerial" class="inp" style="max-width:120px" value="${esc(serialPrefill)}" placeholder="${t().serial}" />
+        </div>
       </label>
       <div id="memoWarn" class="text-xs" style="color:#9B2C2C"></div>
       <label class="flex flex-col gap-1 text-sm">
@@ -1041,6 +1152,12 @@ function openBookEventModal(subUnitId, existing) {
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().address}</span>
         <input id="evAddress" class="inp" value="${esc(existing?.customerAddress || "")}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().eventPlace}</span>
+        <select id="evPlace" class="inp">
+          ${eventPlaces.map(p => `<option value="${p.id}" ${existing?.placeId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("") || `<option value="">—</option>`}
+        </select>
       </label>
       <div class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
@@ -1054,6 +1171,14 @@ function openBookEventModal(subUnitId, existing) {
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" value="${existing?.tableQty ?? ""}" /></label>
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" value="${existing?.boyQty ?? ""}" /></label>
       </div>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().otherService} (৳)</span>
+        <input id="evOtherAmt" type="number" class="inp" value="${existing?.otherServiceAmount || ""}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().otherServiceNote}</span>
+        <input id="evOtherNote" class="inp" value="${esc(existing?.otherServiceNote || "")}" />
+      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -1069,31 +1194,39 @@ function openBookEventModal(subUnitId, existing) {
     }
     bindChips();
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#evMemo").addEventListener("input", (e) => {
-      const warn = wrap.querySelector("#memoWarn");
-      if (memoTaken(subUnitId, e.target.value.trim(), existing?.id)) { warn.textContent = t().duplicateMemo; markInvalid(e.target); }
-      else { warn.textContent = ""; clearInvalid(e.target); }
+    wrap.querySelector("#evDate").addEventListener("change", (e) => {
+      currentPrefix = memoPrefixFor(subUnitId, e.target.value);
+      wrap.querySelector("#memoPrefixSpan").textContent = currentPrefix;
     });
+    const checkDup = () => {
+      const warn = wrap.querySelector("#memoWarn");
+      const full = currentPrefix + wrap.querySelector("#evSerial").value.trim();
+      if (memoTaken(subUnitId, full, existing?.id)) { warn.textContent = t().duplicateMemo; markInvalid(wrap.querySelector("#evSerial")); }
+      else { warn.textContent = ""; clearInvalid(wrap.querySelector("#evSerial")); }
+    };
+    wrap.querySelector("#evSerial").addEventListener("input", checkDup);
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const fields = {
-        evMemo: wrap.querySelector("#evMemo"), evName: wrap.querySelector("#evName"),
-        evAddress: wrap.querySelector("#evAddress"), evBooking: wrap.querySelector("#evBooking"),
-        evDate: wrap.querySelector("#evDate"), evTime: wrap.querySelector("#evTime"),
+        evSerial: wrap.querySelector("#evSerial"), evName: wrap.querySelector("#evName"),
+        evAddress: wrap.querySelector("#evAddress"), evPlace: wrap.querySelector("#evPlace"),
+        evBooking: wrap.querySelector("#evBooking"), evDate: wrap.querySelector("#evDate"), evTime: wrap.querySelector("#evTime"),
         evTotal: wrap.querySelector("#evTotal"), evTable: wrap.querySelector("#evTable"), evBoy: wrap.querySelector("#evBoy"),
       };
       let ok = true;
       Object.values(fields).forEach(f => {
         if (!f.value || !f.value.toString().trim()) { markInvalid(f); ok = false; } else clearInvalid(f);
       });
-      const memoVal = fields.evMemo.value.trim();
-      if (memoTaken(subUnitId, memoVal, existing?.id)) { markInvalid(fields.evMemo); ok = false; }
+      const fullMemo = currentPrefix + fields.evSerial.value.trim();
+      if (memoTaken(subUnitId, fullMemo, existing?.id)) { markInvalid(fields.evSerial); ok = false; }
       if (!selected.length) ok = false;
       if (!ok) { wrap.querySelector("#memoWarn").textContent = t().fillAllFields; return; }
 
       const data = {
-        memoNo: memoVal, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
-        eventTypeIds: selected, bookingDate: fields.evBooking.value, eventDate: fields.evDate.value, eventTime: fields.evTime.value,
+        memoNo: fullMemo, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
+        placeId: fields.evPlace.value, eventTypeIds: selected,
+        bookingDate: fields.evBooking.value, eventDate: fields.evDate.value, eventTime: fields.evTime.value,
         totalRentAmount: Number(fields.evTotal.value) || 0, tableQty: Number(fields.evTable.value) || 0, boyQty: Number(fields.evBoy.value) || 0,
+        otherServiceAmount: Number(wrap.querySelector("#evOtherAmt").value) || 0, otherServiceNote: wrap.querySelector("#evOtherNote").value.trim(),
       };
       if (isEdit) {
         await performEdit("events", existing.id, data, subUnitId);
@@ -1131,10 +1264,12 @@ function paintEventDetailBody(eventId) {
     <div class="grid grid-cols-2 gap-2 text-sm mb-4">
       <div><span style="color:#8a8578">${t().eventDate}: </span>${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
       <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : (balance <= 0 ? t().doneStatus : t().pendingStatus)}</span></div>
+      <div class="col-span-2"><span style="color:#8a8578">${t().eventPlace}: </span>${esc(placeName(e.placeId))}</div>
       <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(e.customerAddress || "—")}</div>
       <div><span style="color:#8a8578">${t().totalRent}: </span>৳${Number(e.totalRentAmount || 0).toLocaleString()}</div>
-      <div><span style="color:#8a8578">${t().collected}: </span>৳${paid.toLocaleString()}</div>
-      ${refunded > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().refund}: </span>-৳${refunded.toLocaleString()}</div>` : ""}
+      <div><span style="color:#8a8578">${t().collected}: </span><span class="txt-income">৳${paid.toLocaleString()}</span></div>
+      ${e.otherServiceAmount ? `<div class="col-span-2"><span style="color:#8a8578">${t().otherService}: </span>৳${Number(e.otherServiceAmount).toLocaleString()} ${e.otherServiceNote ? "— " + esc(e.otherServiceNote) : ""}</div>` : ""}
+      ${refunded > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().refund}: </span><span class="txt-expense">-৳${refunded.toLocaleString()}</span></div>` : ""}
       <div class="col-span-2 text-base font-semibold" style="color:#1B4332">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</div>
     </div>
     ${e.status !== "cancelled" ? `
@@ -1146,23 +1281,30 @@ function paintEventDetailBody(eventId) {
       ${add && paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : ""}
       ${add ? `<button id="btnCancelEvent" class="btn btn-danger" style="padding:6px 10px;font-size:12px">${t().cancelEvent}</button>` : ""}
     </div>` : (add && paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline mb-4" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : "")}
+    ${isAdmin() ? `<button id="btnDeleteEvent" class="btn btn-outline mb-4" style="padding:6px 10px;font-size:12px;color:#9B2C2C">${icons.trash}${t().deleteEvent}</button>` : ""}
     ${e.status === "cancelled" && e.cancelReason ? `<p class="text-xs mb-3" style="color:#8a8578">${t().cancelReason}: ${esc(e.cancelReason)}</p>` : ""}
     <div class="mb-4">
       <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().payHistory}</h4>
       ${pays.length ? `<ul class="flex flex-col gap-1.5">${pays.map(p => `
         <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
           <span>${p.type === "advance" ? t().advance : p.type === "due" ? t().dueCollection : t().refund} · ${esc(p.paidDate || "")}</span>
-          <span style="${p.type === "refund" ? "color:#9B2C2C;font-weight:600" : "font-weight:600"}">${p.type === "refund" ? "-" : ""}৳${Number(p.amount).toLocaleString()}</span>
+          <span class="flex items-center gap-2">
+            <span class="${p.type === "refund" ? "txt-expense" : "txt-income"}" style="font-weight:600">${p.type === "refund" ? "-" : ""}৳${Number(p.amount).toLocaleString()}</span>
+            ${edit ? `<button data-editpay="${p.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+          </span>
         </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
     </div>
-    ${exps.length ? `<div>
+    <div>
       <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().eventExpenseHistory}</h4>
-      <ul class="flex flex-col gap-1.5">${exps.map(x => `
+      ${exps.length ? `<ul class="flex flex-col gap-1.5">${exps.map(x => `
         <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
-          <span>${x.type === "boyWage" ? t().boyWage : x.type === "labourWage" ? t().labourWage : t().otherExpense} ${x.details ? "· " + esc(x.details) : ""}</span>
-          <span class="font-medium">৳${Number(x.amount).toLocaleString()}</span>
-        </li>`).join("")}</ul>
-    </div>` : ""}`;
+          <span>${esc(expenseCategories.find(c => c.id === x.categoryId)?.name || x.type || "—")} ${x.details ? "· " + esc(x.details) : ""}</span>
+          <span class="flex items-center gap-2">
+            <span class="txt-expense font-medium">৳${Number(x.amount).toLocaleString()}</span>
+            ${edit ? `<button data-editexp="${x.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+          </span>
+        </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+    </div>`;
 
   const be = box.querySelector("#btnEditEvent"); if (be) be.addEventListener("click", () => openBookEventModal(e.subUnitId, e));
   const b1 = box.querySelector("#btnAdvance"); if (b1) b1.addEventListener("click", () => openEventPaymentModal(e, "advance"));
@@ -1170,6 +1312,9 @@ function paintEventDetailBody(eventId) {
   const b3 = box.querySelector("#btnRefund"); if (b3) b3.addEventListener("click", () => openEventPaymentModal(e, "refund", paid - refunded));
   const b4 = box.querySelector("#btnExp"); if (b4) b4.addEventListener("click", () => openEventExpenseModal(e));
   const b5 = box.querySelector("#btnCancelEvent"); if (b5) b5.addEventListener("click", () => openCancelEventModal(e));
+  const b6 = box.querySelector("#btnDeleteEvent"); if (b6) b6.addEventListener("click", () => openDeleteEventConfirm(e));
+  box.querySelectorAll("[data-editpay]").forEach(b => b.addEventListener("click", () => openEditTxnModal("eventPayments", b.getAttribute("data-editpay"), e.subUnitId)));
+  box.querySelectorAll("[data-editexp]").forEach(b => b.addEventListener("click", () => openEditTxnModal("eventExpenses", b.getAttribute("data-editexp"), e.subUnitId)));
 }
 
 function openEventPaymentModal(ev, type, max) {
@@ -1197,14 +1342,13 @@ function openEventPaymentModal(ev, type, max) {
 }
 
 function openEventExpenseModal(ev) {
+  const cats = expenseCategories.filter(c => c.subUnitId === ev.subUnitId);
   openModal(t().eventExpenseHistory, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().eventExpenseType}</span>
-        <select id="expType" class="inp">
-          <option value="boyWage">${t().boyWage}</option>
-          <option value="labourWage">${t().labourWage}</option>
-          <option value="other">${t().otherExpense}</option>
+        <span class="font-medium" style="color:#6B6659">${t().expenseCategory}</span>
+        <select id="expCat" class="inp">
+          ${cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("") || `<option value="">—</option>`}
         </select>
       </label>
       <label class="flex flex-col gap-1 text-sm">
@@ -1225,7 +1369,7 @@ function openEventExpenseModal(ev) {
       const amount = Number(wrap.querySelector("#expAmount").value) || 0;
       if (!amount) return;
       await addDoc(collection(db, "eventExpenses"), {
-        eventId: ev.id, type: wrap.querySelector("#expType").value,
+        eventId: ev.id, categoryId: wrap.querySelector("#expCat").value,
         amount, details: wrap.querySelector("#expDetails").value.trim(), createdAt: serverTimestamp(),
       });
       wrap.remove();
@@ -1252,6 +1396,28 @@ function openCancelEventModal(ev) {
         status: "cancelled", cancelReason: wrap.querySelector("#cxReason").value.trim(), cancelledAt: todayISO(),
       });
       wrap.remove();
+    });
+  });
+}
+
+function openDeleteEventConfirm(ev) {
+  openModal(t().deleteEvent, `
+    <div class="flex flex-col gap-4">
+      <p class="text-sm" style="color:#6B6659">${t().confirmDeleteEvent}</p>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="confirmBtn" class="btn btn-danger">${t().delete}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#confirmBtn").addEventListener("click", () => {
+      wrap.remove();
+      withPasswordConfirm(async () => {
+        for (const p of eventPayments.filter(x => x.eventId === ev.id)) await deleteDoc(doc(db, "eventPayments", p.id));
+        for (const x of eventExpenses.filter(x => x.eventId === ev.id)) await deleteDoc(doc(db, "eventExpenses", x.id));
+        for (const r of approvalRequests.filter(r => r.targetId === ev.id)) await deleteDoc(doc(db, "approvalRequests", r.id));
+        await deleteDoc(doc(db, "events", ev.id));
+      });
     });
   });
 }
@@ -1284,6 +1450,11 @@ function renderAdminPanel(el) {
     <div id="unitsGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.pin}<h2 class="text-lg font-semibold">${t().propertyIds}</h2></div>
+    </div>
+    <div id="propGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().expenseCategories}</h2></div>
     </div>
     <div id="catGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
@@ -1295,9 +1466,10 @@ function renderAdminPanel(el) {
     <div id="etGrid" class="flex flex-wrap gap-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2" style="color:#1B4332">${icons.bell}<h2 class="text-lg font-semibold">${t().approvalPending}</h2></div>
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.pin}<h2 class="text-lg font-semibold">${t().eventPlacesMgmt}</h2></div>
+      <button id="addPlaceBtn" class="btn btn-primary" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addPlace}</button>
     </div>
-    <div id="approvalList" class="flex flex-col gap-2 mb-8"></div>
+    <div id="placeGrid" class="flex flex-wrap gap-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">${icons.users}<h2 class="text-lg font-semibold">${t().userManagement}</h2></div>
@@ -1308,13 +1480,20 @@ function renderAdminPanel(el) {
   document.getElementById("addUnitBtn").addEventListener("click", openAddUnitModal);
   document.getElementById("addUserBtn").addEventListener("click", openAddUserModal);
   document.getElementById("addEtBtn").addEventListener("click", () => openEventTypeModal());
+  document.getElementById("addPlaceBtn").addEventListener("click", () => openEventPlaceModal());
   document.getElementById("hijriMinus").addEventListener("click", () => adjustHijriOffset(-1));
   document.getElementById("hijriPlus").addEventListener("click", () => adjustHijriOffset(1));
   paintAdminGrid();
+  paintPropertyGrid();
   paintCategoryGrid();
   paintEventTypeGrid();
-  paintApprovalList();
+  paintEventPlaceGrid();
   paintUsersList();
+}
+
+function renderApprovalTab(el) {
+  el.innerHTML = `<div class="flex items-center gap-2 mb-4" style="color:#1B4332">${icons.bell}<h2 class="text-lg font-semibold">${t().approvalPending}</h2></div><div id="approvalList" class="flex flex-col gap-2"></div>`;
+  paintApprovalList();
 }
 
 async function adjustHijriOffset(delta) {
@@ -1331,6 +1510,7 @@ function paintAdminGrid() {
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-1.5">
           <h3 class="font-semibold" style="color:#1B4332">${esc(u.name)}</h3>
+          <span class="text-xs" style="color:#8a8578">(${esc(u.eventPrefix || autoPrefix(u.name))})</span>
           <button data-editunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px">${icons.pencil}</button>
           <button data-delunit="${u.id}" class="btn btn-ghost" style="padding:3px 6px;font-size:11px;color:#9B2C2C">${icons.trash}</button>
         </div>
@@ -1363,13 +1543,15 @@ function openAddUnitModal() {
   openModal(t().addUnit, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().unitName}</span><input id="unitNameInput" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventPrefix}</span><input id="unitPrefixInput" class="inp" placeholder="e.g. GP" /></label>
       <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#unitNameInput").value.trim();
       if (!name) return;
-      await addDoc(collection(db, "units"), { name, createdAt: serverTimestamp() });
+      const eventPrefix = wrap.querySelector("#unitPrefixInput").value.trim().toUpperCase() || autoPrefix(name);
+      await addDoc(collection(db, "units"), { name, eventPrefix, createdAt: serverTimestamp() });
       wrap.remove();
     });
   });
@@ -1379,14 +1561,16 @@ function openEditUnitModal(unit) {
   openModal(t().editUnit, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().unitName}</span><input id="unitNameInput" class="inp" value="${esc(unit.name)}" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventPrefix}</span><input id="unitPrefixInput" class="inp" value="${esc(unit.eventPrefix || autoPrefix(unit.name))}" /></label>
       <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", () => {
       const name = wrap.querySelector("#unitNameInput").value.trim();
+      const eventPrefix = wrap.querySelector("#unitPrefixInput").value.trim().toUpperCase();
       if (!name) return;
       wrap.remove();
-      withPasswordConfirm(async () => { await updateDoc(doc(db, "units", unit.id), { name }); });
+      withPasswordConfirm(async () => { await updateDoc(doc(db, "units", unit.id), { name, eventPrefix }); });
     });
   });
 }
@@ -1426,11 +1610,58 @@ function openEditSubUnitModal(sub) {
   });
 }
 
-function paintCategoryGrid() {
-  const grid = document.getElementById("catGrid");
+function paintPropertyGrid() {
+  const grid = document.getElementById("propGrid");
   if (!grid) return;
   const nonEventSubs = subUnits.filter(s => s.billingType !== "perEvent");
   grid.innerHTML = nonEventSubs.map(su => `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(unitSubLabel(su.id))}</h3>
+        <button data-addprop="${su.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addPropertyId}</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${propertyIds.filter(p => p.subUnitId === su.id).map(p => `
+          <span class="badge badge-green" style="display:inline-flex;align-items:center;gap:6px">
+            ${esc(p.label)}
+            <button data-editprop="${p.id}" style="color:#1B4332">${icons.pencil}</button>
+            <button data-delprop="${p.id}" style="color:#9B2C2C">${icons.trash}</button>
+          </span>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-addprop]").forEach(b => b.addEventListener("click", () => openPropertyIdModal(b.getAttribute("data-addprop"))));
+  grid.querySelectorAll("[data-editprop]").forEach(b => b.addEventListener("click", () => {
+    const p = propertyIds.find(x => x.id === b.getAttribute("data-editprop"));
+    openPropertyIdModal(p.subUnitId, p);
+  }));
+  grid.querySelectorAll("[data-delprop]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "propertyIds", b.getAttribute("data-delprop"))); });
+  }));
+}
+function openPropertyIdModal(subUnitId, existing) {
+  openModal(existing ? t().edit : t().addPropertyId, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().propertyIdLabel}</span><input id="propLabelInput" class="inp" value="${esc(existing?.label || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const label = wrap.querySelector("#propLabelInput").value.trim();
+      if (!label) return;
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "propertyIds", existing.id), { label }); });
+      } else {
+        addDoc(collection(db, "propertyIds"), { subUnitId, label, createdAt: serverTimestamp() });
+      }
+    });
+  });
+}
+
+function paintCategoryGrid() {
+  const grid = document.getElementById("catGrid");
+  if (!grid) return;
+  grid.innerHTML = subUnits.map(su => `
     <div class="card p-4">
       <div class="flex items-center justify-between mb-2">
         <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(unitSubLabel(su.id))}</h3>
@@ -1438,9 +1669,9 @@ function paintCategoryGrid() {
       </div>
       <div class="flex flex-wrap gap-1.5">
         ${expenseCategories.filter(c => c.subUnitId === su.id).map(c => `
-          <span class="badge badge-green" style="display:inline-flex;align-items:center;gap:6px">
+          <span class="badge badge-brown" style="display:inline-flex;align-items:center;gap:6px">
             ${esc(c.name)}
-            <button data-editcat="${c.id}" style="color:#1B4332">${icons.pencil}</button>
+            <button data-editcat="${c.id}" style="color:#8B5A2B">${icons.pencil}</button>
             <button data-delcat="${c.id}" style="color:#9B2C2C">${icons.trash}</button>
           </span>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
       </div>
@@ -1508,10 +1739,44 @@ function openEventTypeModal(existing) {
   });
 }
 
+function paintEventPlaceGrid() {
+  const grid = document.getElementById("placeGrid");
+  if (!grid) return;
+  grid.innerHTML = eventPlaces.map(p => `
+    <span class="badge badge-gold" style="display:inline-flex;align-items:center;gap:6px">
+      ${esc(p.name)}
+      <button data-editplace="${p.id}" style="color:#8a6a3f">${icons.pencil}</button>
+      <button data-delplace="${p.id}" style="color:#9B2C2C">${icons.trash}</button>
+    </span>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-editplace]").forEach(b => b.addEventListener("click", () => openEventPlaceModal(eventPlaces.find(x => x.id === b.getAttribute("data-editplace")))));
+  grid.querySelectorAll("[data-delplace]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "eventPlaces", b.getAttribute("data-delplace"))); });
+  }));
+}
+function openEventPlaceModal(existing) {
+  openModal(existing ? t().edit : t().addPlace, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventPlace}</span><input id="plName" class="inp" value="${esc(existing?.name || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#plName").value.trim();
+      if (!name) return;
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "eventPlaces", existing.id), { name }); });
+      } else {
+        addDoc(collection(db, "eventPlaces"), { name, createdAt: serverTimestamp() });
+      }
+    });
+  });
+}
+
 function targetLabel(req) {
   if (req.targetCollection === "tenants") { const tn = tenants.find(x => x.id === req.targetId); return tn ? tn.name : req.targetId; }
   if (req.targetCollection === "events") { const ev = events.find(x => x.id === req.targetId); return ev ? `${ev.customerName} (${ev.memoNo})` : req.targetId; }
-  return req.targetId;
+  return `${req.targetCollection} · ${req.targetId}`;
 }
 function paintApprovalList() {
   const box = document.getElementById("approvalList");
@@ -1580,8 +1845,8 @@ function paintUsersList() {
   listEl.innerHTML = allUsers.map(u => `
     <div class="card p-3 flex items-center justify-between">
       <div>
-        <div class="text-sm font-medium" style="color:#1B4332">${esc(u.name || u.email)} ${u.role === "admin" ? `<span class="badge badge-gold">${t().admin_r}</span>` : ""}</div>
-        <div class="text-xs" style="color:#8a8578">${esc(u.email || "")}</div>
+        <div class="text-sm font-medium" style="color:#1B4332">${esc(u.name || u.username || u.email)} ${u.role === "admin" ? `<span class="badge badge-gold">${t().admin_r}</span>` : ""}</div>
+        <div class="text-xs" style="color:#8a8578">${esc(u.username ? "@" + u.username : (u.email || ""))}</div>
       </div>
       <div class="flex items-center gap-2">
         <span class="badge ${u.active === false ? "badge-gray" : "badge-green"}">${u.active === false ? t().inactive : t().active}</span>
@@ -1601,8 +1866,9 @@ function openAddUserModal() {
   openModal(t().addUser, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().name}</span><input id="uName" class="inp" /></label>
-      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().email}</span><input id="uEmail" type="email" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().usernameLabel}</span><input id="uUsername" class="inp" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().password}</span><input id="uPassword" type="password" class="inp" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" /><span>${t().isAdminUser}</span></label>
       <div id="uPermsWrap">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
@@ -1615,21 +1881,26 @@ function openAddUserModal() {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#uName").value.trim();
-      const email = wrap.querySelector("#uEmail").value.trim();
+      const username = wrap.querySelector("#uUsername").value.trim().toLowerCase().replace(/\s+/g, "");
       const password = wrap.querySelector("#uPassword").value;
+      const realEmail = wrap.querySelector("#uEmail").value.trim();
       const isAdminUser = wrap.querySelector("#uIsAdmin").checked;
       const errBox = wrap.querySelector("#uErr");
-      if (!name || !email || password.length < 6) { errBox.textContent = t().userCreateError; return; }
+      if (!name || !username || password.length < 6) { errBox.textContent = t().userCreateError; return; }
+      const authEmail = realEmail || `${username}@${USERNAME_DOMAIN}`;
       const permissions = isAdminUser ? {} : readPermMatrix(wrap);
       const secName = "secondary-" + Date.now();
       try {
         const secApp = initializeApp(firebaseConfig, secName);
         const secAuth = getAuth(secApp);
-        const cred = await createUserWithEmailAndPassword(secAuth, email, password);
+        const cred = await createUserWithEmailAndPassword(secAuth, authEmail, password);
         const newUid = cred.user.uid;
         await signOut(secAuth);
         await deleteApp(secApp);
-        await setDoc(doc(db, "users", newUid), { name, email, role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp() });
+        await setDoc(doc(db, "users", newUid), {
+          name, username, email: realEmail || "", role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, "usernameIndex", username), { email: authEmail });
         wrap.remove();
       } catch (e) { errBox.textContent = t().userCreateError; }
     });
@@ -1641,29 +1912,32 @@ function openEditUserModal(user) {
   openModal(t().editUser, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().name}</span><input id="uName" class="inp" value="${esc(user.name || "")}" /></label>
-      <p class="text-xs" style="color:#8a8578">${esc(user.email || "")}</p>
+      <p class="text-xs" style="color:#8a8578">@${esc(user.username || "")}</p>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" value="${esc(user.email || "")}" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} /><span>${t().isAdminUser}</span></label>
       <div id="uPermsWrap" style="${isAdminUser0 ? "display:none" : ""}">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml(user.permissions)}</div>
       </div>
-      <button id="resetBtn" class="btn btn-outline">${t().sendResetEmail}</button>
+      ${user.email ? `<button id="resetBtn" class="btn btn-outline">${t().sendResetEmail}</button>` : ""}
       <div id="uMsg" class="text-xs"></div>
       <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
     wrap.querySelector("#uIsAdmin").addEventListener("change", (e) => { wrap.querySelector("#uPermsWrap").style.display = e.target.checked ? "none" : "block"; });
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#resetBtn").addEventListener("click", async () => {
+    const resetBtn = wrap.querySelector("#resetBtn");
+    if (resetBtn) resetBtn.addEventListener("click", async () => {
       const msg = wrap.querySelector("#uMsg");
       try { await sendPasswordResetEmail(auth, user.email); msg.style.color = "#1B4332"; msg.textContent = t().resetEmailSent; }
       catch (e) { msg.style.color = "#9B2C2C"; msg.textContent = t().passwordError; }
     });
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const name = wrap.querySelector("#uName").value.trim();
+      const email = wrap.querySelector("#uEmail").value.trim();
       const isAdminUser = wrap.querySelector("#uIsAdmin").checked;
       const permissions = isAdminUser ? {} : readPermMatrix(wrap);
       if (!name) return;
-      await updateDoc(doc(db, "users", user.id), { name, role: isAdminUser ? "admin" : "user", permissions });
+      await updateDoc(doc(db, "users", user.id), { name, email, role: isAdminUser ? "admin" : "user", permissions });
       wrap.remove();
     });
   });
@@ -1676,10 +1950,18 @@ function repaintCurrentTab() {
   if (tab === "dashboard") paintDashboardCard();
   if (tab === "dataEntry") paintDataEntryBody();
   if (tab === "adminPanel" && isAdmin()) {
-    paintAdminGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintApprovalList(); paintUsersList();
+    paintAdminGrid(); paintPropertyGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
   }
-  document.querySelectorAll("[data-tenant-modal]").forEach(w => { const id = w.dataset.tenantModal; if (id) paintTenantDetailBody(id); });
+  if (tab === "approvalPending" && isAdmin()) paintApprovalList();
+  document.querySelectorAll("[data-prop-modal]").forEach(w => { const id = w.dataset.propModal; if (id) paintPropertyDetailBody(id); });
   document.querySelectorAll("[data-event-modal]").forEach(w => { const id = w.dataset.eventModal; if (id) paintEventDetailBody(id); });
+  const headerBadge = document.querySelector('[data-tab="approvalPending"] .badge');
+  if (headerBadge) {
+    const n = approvalRequests.filter(r => r.status === "pending").length;
+    headerBadge.textContent = n;
+    headerBadge.className = `badge ${n ? "badge-red" : "badge-gray"}`;
+    headerBadge.style.marginLeft = "2px";
+  }
 }
 
 function startAllListeners() {
@@ -1694,6 +1976,8 @@ function startAllListeners() {
   unsubs.push(bind("users", allUsers));
   unsubs.push(bind("expenseCategories", expenseCategories));
   unsubs.push(bind("eventTypes", eventTypes));
+  unsubs.push(bind("eventPlaces", eventPlaces));
+  unsubs.push(bind("propertyIds", propertyIds));
   unsubs.push(bind("tenants", tenants));
   unsubs.push(bind("rentPayments", rentPayments));
   unsubs.push(bind("expenses", expenses));
@@ -1713,7 +1997,7 @@ function stopAllListeners() {
   unsubs.forEach(u => u());
   unsubs = [];
   units.length = 0; subUnits.length = 0; allUsers.length = 0;
-  expenseCategories.length = 0; eventTypes.length = 0;
+  expenseCategories.length = 0; eventTypes.length = 0; eventPlaces.length = 0; propertyIds.length = 0;
   tenants.length = 0; rentPayments.length = 0; expenses.length = 0;
   events.length = 0; eventPayments.length = 0; eventExpenses.length = 0;
   approvalRequests.length = 0;
@@ -1723,7 +2007,7 @@ async function seedIfEmpty() {
   if (!isAdmin()) return;
   const snap = await getDocs(collection(db, "units"));
   if (!snap.empty) return;
-  const unitRef = await addDoc(collection(db, "units"), { name: "Green Park", createdAt: serverTimestamp() });
+  const unitRef = await addDoc(collection(db, "units"), { name: "Green Park", eventPrefix: "GP", createdAt: serverTimestamp() });
   for (const s of [{ name: "Event", billingType: "perEvent" }, { name: "Shop", billingType: "monthly" }, { name: "House", billingType: "monthly" }]) {
     await addDoc(collection(db, "subUnits"), { unitId: unitRef.id, name: s.name, billingType: s.billingType, createdAt: serverTimestamp() });
   }

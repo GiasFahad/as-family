@@ -132,6 +132,8 @@ const STR = {
     vacant: "Vacant", currentTenant: "Current Tenant", changeTenant: "Change Tenant", addTenantHere: "Add Tenant Profile",
     tenantHistory: "Tenant History", endedOn: "ended", totalBooking: "Total Booking",
     usernameLabel: "Username", loginIdLabel: "Username or Email", emailOptionalLabel: "Email (optional, can add later)",
+    selectMonths: "Select Month(s)", rentSystemLabel: "Rent System", rentSystemRunning: "Running Month", rentSystemOld: "Old Month",
+    today: "Today's Events", tomorrow: "Tomorrow's Events", pendingRentsLabel: "Pending Rent",
   },
   bn: {
     appName: "A&S Family Business", brand: "By FaBi",
@@ -196,6 +198,8 @@ const STR = {
     vacant: "খালি", currentTenant: "বর্তমান ভাড়াটিয়া", changeTenant: "ভাড়াটিয়া পরিবর্তন", addTenantHere: "ভাড়াটিয়া যোগ করুন",
     tenantHistory: "ভাড়াটিয়ার ইতিহাস", endedOn: "শেষ", totalBooking: "মোট বুকিং",
     usernameLabel: "ইউজারনেম", loginIdLabel: "ইউজারনেম বা ইমেইল", emailOptionalLabel: "ইমেইল (ঐচ্ছিক, পরে যোগ করা যাবে)",
+    selectMonths: "মাস বাছাই করো", rentSystemLabel: "ভাড়ার সিস্টেম", rentSystemRunning: "চলতি মাস", rentSystemOld: "গত মাস",
+    today: "আজকের ইভেন্ট", tomorrow: "আগামীকালের ইভেন্ট", pendingRentsLabel: "বাকি ভাড়া",
   },
 };
 
@@ -312,7 +316,7 @@ let globalSettings = { hijriOffsetDays: 0 };
 let allUsers = [];
 let expenseCategories = [], eventTypes = [], eventPlaces = [], propertyIds = [];
 let tenants = [], rentPayments = [], expenses = [];
-let events = [], eventPayments = [], eventExpenses = [];
+let events = [], eventPayments = [], eventExpenses = [], eventOtherServices = [];
 let approvalRequests = [];
 
 let unsubs = [];
@@ -427,13 +431,23 @@ function accessibleSubUnitsOf(unitId) {
 // ---------------------------------------------------------------------------
 // Approval workflow
 // ---------------------------------------------------------------------------
+function findLocal(coll, id) {
+  const map = { tenants, events, rentPayments, expenses, eventPayments, eventExpenses, eventOtherServices };
+  return (map[coll] || []).find(x => x.id === id);
+}
+function snapshotBefore(coll, id, changes) {
+  const item = findLocal(coll, id);
+  const before = {};
+  Object.keys(changes).forEach(k => { before[k] = item ? item[k] : null; });
+  return before;
+}
 async function performEdit(targetCollection, targetId, changes, subUnitId) {
   if (isAdmin()) {
     await updateDoc(doc(db, targetCollection, targetId), changes);
     return "applied";
   }
   await addDoc(collection(db, "approvalRequests"), {
-    targetCollection, targetId, changes, subUnitId,
+    targetCollection, targetId, changes, before: snapshotBefore(targetCollection, targetId, changes), subUnitId,
     requestedBy: currentUser.uid, requestedByName: profile.name || profile.username || currentUser.email,
     status: "pending", createdAt: serverTimestamp(),
   });
@@ -504,15 +518,21 @@ const TABS = [
   { key: "dataEntry", icon: "store" },
   { key: "reports", icon: "report" },
   { key: "adminPanel", icon: "gear", adminOnly: true },
-  { key: "approvalPending", icon: "bell", adminOnly: true },
+  { key: "approvalPending", icon: "bell" },
 ];
+
+function myPendingCount() {
+  return isAdmin()
+    ? approvalRequests.filter(r => r.status === "pending").length
+    : approvalRequests.filter(r => r.status === "pending" && r.requestedBy === currentUser.uid).length;
+}
 
 function renderApp() {
   const admin = isAdmin();
   const roleLabel = admin ? t().admin_r : t().user_r;
   const visibleTabs = TABS.filter(tb => !tb.adminOnly || admin);
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
-  const pendingCount = approvalRequests.filter(r => r.status === "pending").length;
+  const pendingCount = myPendingCount();
 
   root.innerHTML = `
   <div class="min-h-screen">
@@ -560,7 +580,7 @@ function renderTabContent() {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const el = document.getElementById("tabContent");
   if (tab === "adminPanel" && isAdmin()) { renderAdminPanel(el); return; }
-  if (tab === "approvalPending" && isAdmin()) { renderApprovalTab(el); return; }
+  if (tab === "approvalPending") { renderApprovalTab(el); return; }
   if (tab === "dashboard") { renderDashboard(el); return; }
   if (tab === "dataEntry") { renderDataEntry(el); return; }
   if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
@@ -645,7 +665,8 @@ function openSettingsModal() {
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
-function eventTotalOwed(ev) { return (ev.totalRentAmount || 0) + (ev.otherServiceAmount || 0); }
+function eventOtherTotal(eventId) { return eventOtherServices.filter(o => o.eventId === eventId).reduce((s, o) => s + o.amount, 0); }
+function eventTotalOwed(ev) { return (ev.totalRentAmount || 0) + eventOtherTotal(ev.id); }
 function eventBalance(ev) {
   const pays = eventPayments.filter(p => p.eventId === ev.id);
   const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
@@ -669,19 +690,28 @@ function computeDashboardStats() {
   const todayStr = todayISO();
   const pending = events.filter(e => e.status !== "cancelled" && eventBalance(e) > 0);
   const upcoming = pending.filter(e => e.eventDate >= todayStr).sort((a, b) => (a.eventDate > b.eventDate ? 1 : -1))[0];
-  const now = new Date();
-  const month = now.getMonth() + 1, year = now.getFullYear();
-  const paidTenantIds = new Set(rentPayments.filter(p => p.month === month && p.year === year).map(p => p.tenantId));
   const subUnitById = Object.fromEntries(subUnits.map(s => [s.id, s]));
   let shopDue = 0, houseDue = 0;
   tenants.forEach(tn => {
-    if (tn.active === false || paidTenantIds.has(tn.id)) return;
+    if (tn.active === false) return;
+    if (dueMonthsFor(tn).length === 0) return;
     const name = (subUnitById[tn.subUnitId]?.name || "").toLowerCase();
     if (name.includes("shop")) shopDue++;
     else if (name.includes("house")) houseDue++;
   });
   return { upcomingDate: upcoming ? upcoming.eventDate : null, pendingCount: pending.length, shopDue, houseDue };
 }
+function dueTenantsFor(category) {
+  const subUnitById = Object.fromEntries(subUnits.map(s => [s.id, s]));
+  return tenants.filter(tn => {
+    if (tn.active === false) return false;
+    if (dueMonthsFor(tn).length === 0) return false;
+    const name = (subUnitById[tn.subUnitId]?.name || "").toLowerCase();
+    return name.includes(category);
+  });
+}
+
+let dashView = "events";
 
 function renderDashboard(el) {
   el.innerHTML = `
@@ -689,6 +719,7 @@ function renderDashboard(el) {
       ${icons.party} ${t().quickBookEvent}
     </button>
     <div id="dashCard" class="mb-6"></div>
+    <div id="dashTodayTomorrow" class="mb-6"></div>
     <div id="dashPendingList"></div>`;
   document.getElementById("quickBookBtn").addEventListener("click", () => {
     const subs = subUnits.filter(s => s.billingType === "perEvent" && canAdd(s.id));
@@ -700,47 +731,93 @@ function renderDashboard(el) {
 
 function paintDashboardCard() {
   const box = document.getElementById("dashCard");
+  const ttBox = document.getElementById("dashTodayTomorrow");
   const listBox = document.getElementById("dashPendingList");
   if (!box) return;
   const s = computeDashboardStats();
+  const tileHtml = (key, label, value) => `
+    <div class="rounded-xl p-3" data-tile="${key}" style="background:${dashView === key ? "#E7F0EA" : "#F7F5F0"};cursor:pointer;border:1px solid ${dashView === key ? "#1B4332" : "transparent"}">
+      <div class="text-xs" style="color:#8a8578">${label}</div>
+      <div class="text-base font-semibold" style="color:#1B4332">${value}</div>
+    </div>`;
   box.innerHTML = `
     <div class="card p-4">
       <div class="text-sm font-semibold mb-3" style="color:#1B4332">${t().dashboardSummary}</div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="rounded-xl p-3" style="background:#F7F5F0">
-          <div class="text-xs" style="color:#8a8578">${t().upcomingEvent}</div>
-          <div class="text-base font-semibold" style="color:#1B4332">${s.upcomingDate ? esc(s.upcomingDate) : t().none}</div>
-        </div>
-        <div class="rounded-xl p-3" style="background:#F7F5F0">
-          <div class="text-xs" style="color:#8a8578">${t().pendingEvents}</div>
-          <div class="text-base font-semibold" style="color:#1B4332">${s.pendingCount}</div>
-        </div>
-        <div class="rounded-xl p-3" style="background:#F7F5F0">
-          <div class="text-xs" style="color:#8a8578">${t().shopUncollected}</div>
-          <div class="text-base font-semibold" style="color:#1B4332">${s.shopDue}</div>
-        </div>
-        <div class="rounded-xl p-3" style="background:#F7F5F0">
-          <div class="text-xs" style="color:#8a8578">${t().houseUncollected}</div>
-          <div class="text-base font-semibold" style="color:#1B4332">${s.houseDue}</div>
-        </div>
+        ${tileHtml("events", t().upcomingEvent, s.upcomingDate ? esc(s.upcomingDate) : t().none)}
+        ${tileHtml("events", t().pendingEvents, s.pendingCount)}
+        ${tileHtml("shop", t().shopUncollected, s.shopDue)}
+        ${tileHtml("house", t().houseUncollected, s.houseDue)}
       </div>
     </div>`;
-  if (!listBox) return;
-  const pendingList = sortedEvents(events.filter(e => e.status !== "cancelled" && eventBalance(e) > 0));
-  listBox.innerHTML = `
-    <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().pendingEvents}</h3>
-    <div class="flex flex-col gap-2">
-    ${pendingList.map(e => `
-      <div class="card p-3" data-openevent="${e.id}" style="cursor:pointer">
-        <div class="flex items-center justify-between mb-1">
-          <div class="text-sm font-medium">${esc(e.customerName)} <span class="text-xs" style="color:#B08968">${esc(e.memoNo)}</span></div>
-          <span class="badge badge-gold">${t().balance}: ৳${Math.max(eventBalance(e),0).toLocaleString()}</span>
+  box.querySelectorAll("[data-tile]").forEach(el => el.addEventListener("click", () => {
+    dashView = el.getAttribute("data-tile");
+    paintDashboardCard();
+  }));
+
+  if (ttBox) {
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const todayEvents = sortedEvents(events.filter(e => e.status !== "cancelled" && e.eventDate === todayISO()));
+    const tomorrowEvents = sortedEvents(events.filter(e => e.status !== "cancelled" && e.eventDate === tomorrowStr));
+    const miniList = (list) => list.length
+      ? `<div class="flex flex-col gap-1.5">${list.map(e => `
+          <div class="rounded-lg px-3 py-1.5 text-xs flex items-center justify-between" style="background:#F7F5F0;cursor:pointer" data-openevent2="${e.id}">
+            <span>${esc(e.customerName)} <span style="color:#B08968">${esc(e.memoNo)}</span></span>
+            <span style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))}</span>
+          </div>`).join("")}</div>`
+      : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+    ttBox.innerHTML = `
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().today}</h3>
+          ${miniList(todayEvents)}
         </div>
-        <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")}</div>
-        <div class="text-xs mt-1"><span style="color:#8a8578">${t().totalBooking}: </span><span class="txt-income font-medium">৳${eventTotalOwed(e).toLocaleString()}</span></div>
-      </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
-    </div>`;
-  listBox.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
+        <div>
+          <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().tomorrow}</h3>
+          ${miniList(tomorrowEvents)}
+        </div>
+      </div>`;
+    ttBox.querySelectorAll("[data-openevent2]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent2"))));
+  }
+
+  if (!listBox) return;
+  if (dashView === "events") {
+    const pendingList = sortedEvents(events.filter(e => e.status !== "cancelled" && eventBalance(e) > 0));
+    listBox.innerHTML = `
+      <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().pendingEvents}</h3>
+      <div class="flex flex-col gap-2">
+      ${pendingList.map(e => `
+        <div class="card p-3" data-openevent="${e.id}" style="cursor:pointer">
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-sm font-medium">${esc(e.customerName)} <span class="text-xs" style="color:#B08968">${esc(e.memoNo)}</span></div>
+            <span class="badge badge-gold">${t().balance}: ৳${Math.max(eventBalance(e),0).toLocaleString()}</span>
+          </div>
+          <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")}</div>
+          <div class="text-xs mt-1"><span style="color:#8a8578">${t().totalBooking}: </span><span class="txt-income font-medium">৳${eventTotalOwed(e).toLocaleString()}</span></div>
+        </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+      </div>`;
+    listBox.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
+  } else {
+    const category = dashView === "shop" ? "shop" : "house";
+    const dueList = dueTenantsFor(category);
+    listBox.innerHTML = `
+      <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${dashView === "shop" ? t().shopUncollected : t().houseUncollected}</h3>
+      <div class="flex flex-col gap-2">
+      ${dueList.map(tn => {
+        const prop = propertyIds.find(p => p.id === tn.propertyId);
+        const due = dueMonthsFor(tn);
+        return `
+        <div class="card p-3" data-openprop2="${tn.propertyId}" style="cursor:pointer">
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-sm font-medium">${esc(prop?.label || "—")} — ${esc(tn.name)}</div>
+            <span class="badge badge-gold">৳${dueAmountFor(tn).toLocaleString()}</span>
+          </div>
+          <div class="text-xs" style="color:#8a8578">${due.map(monthYmLabel).join(", ")}</div>
+        </div>`;
+      }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+      </div>`;
+    listBox.querySelectorAll("[data-openprop2]").forEach(c => c.addEventListener("click", () => openPropertyDetailModal(c.getAttribute("data-openprop2"))));
+  }
 }
 
 function unitSubLabel(subUnitId) {
@@ -796,11 +873,55 @@ function paintDataEntryBody() {
 }
 
 // --- Shop/House: Property IDs ---
-function tenantPaidThisMonth(tenant) {
-  const now = new Date();
-  return rentPayments.some(p => p.tenantId === tenant.id && p.month === now.getMonth() + 1 && p.year === now.getFullYear());
-}
 function activeTenantFor(propertyId) { return tenants.find(t => t.propertyId === propertyId && t.active !== false); }
+
+// ---------------------------------------------------------------------------
+// Rent due-months logic (Running Month vs Old Month billing system)
+// ---------------------------------------------------------------------------
+function monthPaidAmount(tenantId, month, year) {
+  return rentPayments.filter(p => p.tenantId === tenantId && p.month === month && p.year === year).reduce((s, p) => s + p.amount, 0);
+}
+function ymAfter(a, b) { return a.year > b.year || (a.year === b.year && a.month > b.month); }
+function ymAddMonths(ym, n) {
+  let m = ym.month + n, y = ym.year;
+  while (m > 12) { m -= 12; y++; }
+  while (m < 1) { m += 12; y--; }
+  return { month: m, year: y };
+}
+function effectiveDueYM(rentSystem, ref) {
+  const d = ref || new Date();
+  const cur = { month: d.getMonth() + 1, year: d.getFullYear() };
+  return rentSystem === "old" ? ymAddMonths(cur, -1) : cur;
+}
+function tenantStartYM(tenant) {
+  const d = tenant.createdAt && tenant.createdAt.toDate ? tenant.createdAt.toDate() : new Date();
+  return { month: d.getMonth() + 1, year: d.getFullYear() };
+}
+function monthsBetweenInclusive(start, end) {
+  const arr = [];
+  let cur = { ...start };
+  let guard = 0;
+  while (!ymAfter(cur, end) && guard < 240) {
+    arr.push({ ...cur });
+    cur = ymAddMonths(cur, 1);
+    guard++;
+  }
+  return arr;
+}
+function dueMonthsFor(tenant) {
+  const cutoff = effectiveDueYM(tenant.rentSystem || "running");
+  const start = tenantStartYM(tenant);
+  if (ymAfter(start, cutoff)) return [];
+  return monthsBetweenInclusive(start, cutoff).filter(ym => monthPaidAmount(tenant.id, ym.month, ym.year) < (tenant.rentAmount || 0));
+}
+function dueAmountFor(tenant) {
+  return dueMonthsFor(tenant).reduce((s, ym) => s + Math.max(0, (tenant.rentAmount || 0) - monthPaidAmount(tenant.id, ym.month, ym.year)), 0);
+}
+function advanceAmountFor(tenant) {
+  const cutoff = effectiveDueYM(tenant.rentSystem || "running");
+  return rentPayments.filter(p => p.tenantId === tenant.id && ymAfter({ month: p.month, year: p.year }, cutoff)).reduce((s, p) => s + p.amount, 0);
+}
+function monthYmLabel(ym) { return `${GREG_MONTHS_FULL[ym.month - 1]}-${ym.year}`; }
 
 function paintPropertiesBody(body, su) {
   const list = propertyIds.filter(p => p.subUnitId === deSub);
@@ -809,17 +930,16 @@ function paintPropertiesBody(body, su) {
       <h3 class="text-sm font-semibold" style="color:#1B4332">${t().propertyIds}</h3>
     </div>
     <div id="propsList" class="flex flex-col gap-2"></div>`;
-  const now = new Date();
   document.getElementById("propsList").innerHTML = list.map(p => {
     const tn = activeTenantFor(p.id);
-    const paid = tn ? tenantPaidThisMonth(tn) : false;
+    const due = tn ? dueMonthsFor(tn) : [];
     return `
     <div class="flex items-center justify-between rounded-xl px-3 py-2.5" style="background:#F7F5F0;cursor:pointer" data-openprop="${p.id}">
       <div>
         <div class="text-sm font-medium">${esc(p.label)}</div>
         <div class="text-xs" style="color:#8a8578">${tn ? esc(tn.name) : t().vacant}</div>
       </div>
-      ${tn ? `<span class="badge ${paid ? "badge-blue" : "badge-gold"}">${paid ? t().paid : `${t().due} · ${GREG_MONTHS_FULL[now.getMonth()]}`}</span>` : `<span class="badge badge-gray">${t().vacant}</span>`}
+      ${tn ? (due.length ? `<span class="badge badge-gold">৳${dueAmountFor(tn).toLocaleString()} · ${due.length} ${due.length > 1 ? "months" : "month"}</span>` : `<span class="badge badge-blue">${t().paid}</span>`) : `<span class="badge badge-gray">${t().vacant}</span>`}
     </div>`;
   }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
   body.querySelectorAll("[data-openprop]").forEach(row => row.addEventListener("click", () => openPropertyDetailModal(row.getAttribute("data-openprop"))));
@@ -844,7 +964,9 @@ function paintPropertyDetailBody(propertyId) {
   const myExps = expenses.filter(x => x.propertyId === propertyId);
   const totalCollected = myPays.reduce((s, p) => s + p.amount, 0);
   const totalExpense = myExps.reduce((s, x) => s + x.amount, 0);
-  const paid = tn ? tenantPaidThisMonth(tn) : false;
+  const due = tn ? dueMonthsFor(tn) : [];
+  const dueAmt = tn ? dueAmountFor(tn) : 0;
+  const advAmt = tn ? advanceAmountFor(tn) : 0;
   const txns = [
     ...myPays.map(p => ({ id: p.id, coll: "rentPayments", date: p.paidDate, label: `${t().collectRent} — ${esc(p.tenantName || "")}`, amount: p.amount, positive: true })),
     ...myExps.map(x => ({ id: x.id, coll: "expenses", date: x.date, label: (expenseCategories.find(c => c.id === x.categoryId)?.name || "—") + (x.details ? " · " + x.details : ""), amount: -x.amount, positive: false })),
@@ -866,11 +988,15 @@ function paintPropertyDetailBody(propertyId) {
       <div class="rounded-xl p-3 mb-3" style="background:#F7F5F0">
         <div class="text-sm font-medium">${esc(tn.name)} ${pendingApprovalFor(tn.id) ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
         <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
-        <div class="text-xs mt-1"><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()}</div>
+        <div class="text-xs mt-1"><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()} <span style="color:#8a8578">(${tn.rentSystem === "old" ? t().rentSystemOld : t().rentSystemRunning})</span></div>
+        <div class="flex flex-wrap gap-2 mt-2">
+          ${due.length ? `<span class="badge badge-gold">${t().due}: ৳${dueAmt.toLocaleString()} — ${due.map(monthYmLabel).join(", ")}</span>` : `<span class="badge badge-blue">${t().paid}</span>`}
+          ${advAmt > 0 ? `<span class="badge badge-blue">${t().advance}: ৳${advAmt.toLocaleString()}</span>` : ""}
+        </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-4">
         ${edit ? `<button id="propEditTenantBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${icons.pencil}${t().editProfile}</button>` : ""}
-        ${add && !paid ? `<button id="propCollectBtn" class="btn btn-gold" style="padding:5px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
+        ${add ? `<button id="propCollectBtn" class="btn btn-gold" style="padding:5px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
         ${add ? `<button id="propExpBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>` : ""}
         ${add ? `<button id="propChangeBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${t().changeTenant}</button>` : ""}
       </div>` : `
@@ -928,6 +1054,13 @@ function openTenantModal(prop, existing) {
         <span class="font-medium" style="color:#6B6659">${t().rentAmount}</span>
         <input id="tnRent" type="number" class="inp" value="${existing?.rentAmount || ""}" />
       </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().rentSystemLabel}</span>
+        <select id="tnRentSystem" class="inp">
+          <option value="running" ${(existing?.rentSystem || "running") === "running" ? "selected" : ""}>${t().rentSystemRunning}</option>
+          <option value="old" ${existing?.rentSystem === "old" ? "selected" : ""}>${t().rentSystemOld}</option>
+        </select>
+      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -942,6 +1075,7 @@ function openTenantModal(prop, existing) {
         address: wrap.querySelector("#tnAddress").value.trim(),
         phone: wrap.querySelector("#tnPhone").value.trim(),
         rentAmount: Number(wrap.querySelector("#tnRent").value) || 0,
+        rentSystem: wrap.querySelector("#tnRentSystem").value,
       };
       if (isEdit) {
         await performEdit("tenants", existing.id, data, prop.subUnitId);
@@ -961,6 +1095,13 @@ function openChangeTenantModal(prop, oldTenant) {
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().address}</span><input id="ntAddress" class="inp" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().phone}</span><input id="ntPhone" class="inp" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().rentAmount}</span><input id="ntRent" type="number" class="inp" value="${Number(oldTenant.rentAmount || 0)}" /></label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().rentSystemLabel}</span>
+        <select id="ntRentSystem" class="inp">
+          <option value="running" ${(oldTenant.rentSystem || "running") === "running" ? "selected" : ""}>${t().rentSystemRunning}</option>
+          <option value="old" ${oldTenant.rentSystem === "old" ? "selected" : ""}>${t().rentSystemOld}</option>
+        </select>
+      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -974,7 +1115,8 @@ function openChangeTenantModal(prop, oldTenant) {
       await addDoc(collection(db, "tenants"), {
         subUnitId: prop.subUnitId, propertyId: prop.id,
         name, address: wrap.querySelector("#ntAddress").value.trim(), phone: wrap.querySelector("#ntPhone").value.trim(),
-        rentAmount: Number(wrap.querySelector("#ntRent").value) || 0, active: true, createdAt: serverTimestamp(),
+        rentAmount: Number(wrap.querySelector("#ntRent").value) || 0, rentSystem: wrap.querySelector("#ntRentSystem").value,
+        active: true, createdAt: serverTimestamp(),
       });
       wrap.remove();
     });
@@ -982,26 +1124,69 @@ function openChangeTenantModal(prop, oldTenant) {
 }
 
 function openCollectRentModal(prop, tenant) {
+  const due = dueMonthsFor(tenant);
+  const cutoff = effectiveDueYM(tenant.rentSystem || "running");
+  const extraMonths = [1, 2, 3].map(n => ymAddMonths(cutoff, n));
+  const allMonths = [...due, ...extraMonths];
+  const rent = tenant.rentAmount || 0;
+
+  function recomputeDefault(wrap) {
+    const checked = wrap.querySelectorAll("[data-monthcb]:checked").length;
+    wrap.querySelector("#rpAmount").value = rent * checked;
+  }
+
   openModal(`${t().collectRent} — ${tenant.name}`, `
     <div class="flex flex-col gap-4">
+      <div>
+        <div class="text-xs font-medium mb-1.5" style="color:#8a8578">${t().selectMonths}</div>
+        <div class="flex flex-col gap-1.5">
+          ${allMonths.map((ym, i) => `
+            <label class="flex items-center gap-2 text-sm rounded-lg px-3 py-1.5" style="background:#F7F5F0">
+              <input type="checkbox" data-monthcb="${ym.month}-${ym.year}" ${i < due.length ? "checked" : ""} />
+              <span>${monthYmLabel(ym)}</span>
+              ${i >= due.length ? `<span class="badge badge-blue" style="margin-left:auto">${t().advance}</span>` : ""}
+            </label>`).join("")}
+        </div>
+      </div>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
-        <input id="rpAmount" type="number" class="inp" value="${Number(tenant.rentAmount || 0)}" />
+        <input id="rpAmount" type="number" class="inp" value="${rent * due.length}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().bookingDate}</span>
+        <input id="rpDate" type="date" class="inp" value="${todayISO()}" />
       </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
       </div>
     </div>`, (wrap) => {
+    wrap.querySelectorAll("[data-monthcb]").forEach(cb => cb.addEventListener("change", () => recomputeDefault(wrap)));
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
-      const now = new Date();
-      await addDoc(collection(db, "rentPayments"), {
-        tenantId: tenant.id, propertyId: prop.id, subUnitId: prop.subUnitId, tenantName: tenant.name,
-        month: now.getMonth() + 1, year: now.getFullYear(),
-        amount: Number(wrap.querySelector("#rpAmount").value) || 0,
-        paidDate: todayISO(), createdAt: serverTimestamp(),
+      const selected = [...wrap.querySelectorAll("[data-monthcb]:checked")].map(cb => {
+        const [m, y] = cb.getAttribute("data-monthcb").split("-").map(Number);
+        return { month: m, year: y };
       });
+      if (!selected.length) return;
+      let remaining = Number(wrap.querySelector("#rpAmount").value) || 0;
+      const paidDate = wrap.querySelector("#rpDate").value || todayISO();
+      let lastId = null;
+      for (let i = 0; i < selected.length; i++) {
+        const ym = selected[i];
+        const isLast = i === selected.length - 1;
+        const already = monthPaidAmount(tenant.id, ym.month, ym.year);
+        const owedThis = Math.max(0, rent - already);
+        const share = isLast ? remaining : Math.min(remaining, owedThis || rent);
+        remaining -= share;
+        if (share <= 0 && !isLast) continue;
+        const ref = await addDoc(collection(db, "rentPayments"), {
+          tenantId: tenant.id, propertyId: prop.id, subUnitId: prop.subUnitId, tenantName: tenant.name,
+          month: ym.month, year: ym.year, amount: share,
+          paidDate, createdAt: serverTimestamp(),
+        });
+        lastId = ref.id;
+      }
       wrap.remove();
     });
   });
@@ -1046,10 +1231,11 @@ function openPropertyExpenseModal(prop, tenant) {
 }
 
 function openEditTxnModal(coll, id, subUnitId) {
-  const list = coll === "rentPayments" ? rentPayments : coll === "expenses" ? expenses : coll === "eventPayments" ? eventPayments : eventExpenses;
-  const item = list.find(x => x.id === id);
+  const map = { rentPayments, expenses, eventPayments, eventExpenses, eventOtherServices };
+  const item = (map[coll] || []).find(x => x.id === id);
   if (!item) return;
   const dateField = coll === "rentPayments" ? "paidDate" : coll === "expenses" ? "date" : coll === "eventPayments" ? "paidDate" : null;
+  const noteField = coll === "eventOtherServices" ? "note" : (coll === "expenses" || coll === "eventExpenses") ? "details" : null;
   openModal(t().edit, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
@@ -1057,7 +1243,7 @@ function openEditTxnModal(coll, id, subUnitId) {
         <input id="txnAmount" type="number" class="inp" value="${Number(item.amount || 0)}" />
       </label>
       ${dateField ? `<label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">Date</span><input id="txnDate" type="date" class="inp" value="${item[dateField] || todayISO()}" /></label>` : ""}
-      ${item.details !== undefined ? `<label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().details}</span><input id="txnDetails" class="inp" value="${esc(item.details || "")}" /></label>` : ""}
+      ${noteField ? `<label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().details}</span><input id="txnDetails" class="inp" value="${esc(item[noteField] || "")}" /></label>` : ""}
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -1068,7 +1254,7 @@ function openEditTxnModal(coll, id, subUnitId) {
       const changes = { amount: Number(wrap.querySelector("#txnAmount").value) || 0 };
       if (dateField) changes[dateField] = wrap.querySelector("#txnDate").value;
       const detailsInput = wrap.querySelector("#txnDetails");
-      if (detailsInput) changes.details = detailsInput.value.trim();
+      if (detailsInput && noteField) changes[noteField] = detailsInput.value.trim();
       await performEdit(coll, id, changes, subUnitId);
       wrap.remove();
     });
@@ -1171,14 +1357,6 @@ function openBookEventModal(subUnitId, existing) {
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" value="${existing?.tableQty ?? ""}" /></label>
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" value="${existing?.boyQty ?? ""}" /></label>
       </div>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().otherService} (৳)</span>
-        <input id="evOtherAmt" type="number" class="inp" value="${existing?.otherServiceAmount || ""}" />
-      </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().otherServiceNote}</span>
-        <input id="evOtherNote" class="inp" value="${esc(existing?.otherServiceNote || "")}" />
-      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -1226,7 +1404,6 @@ function openBookEventModal(subUnitId, existing) {
         placeId: fields.evPlace.value, eventTypeIds: selected,
         bookingDate: fields.evBooking.value, eventDate: fields.evDate.value, eventTime: fields.evTime.value,
         totalRentAmount: Number(fields.evTotal.value) || 0, tableQty: Number(fields.evTable.value) || 0, boyQty: Number(fields.evBoy.value) || 0,
-        otherServiceAmount: Number(wrap.querySelector("#evOtherAmt").value) || 0, otherServiceNote: wrap.querySelector("#evOtherNote").value.trim(),
       };
       if (isEdit) {
         await performEdit("events", existing.id, data, subUnitId);
@@ -1254,6 +1431,7 @@ function paintEventDetailBody(eventId) {
   const paid = pays.filter(p => p.type !== "refund").reduce((s, p) => s + p.amount, 0);
   const refunded = pays.filter(p => p.type === "refund").reduce((s, p) => s + p.amount, 0);
   const exps = eventExpenses.filter(x => x.eventId === eventId);
+  const others = eventOtherServices.filter(x => x.eventId === eventId);
   const add = canAdd(e.subUnitId), edit = canEdit(e.subUnitId);
   const pendingReq = pendingApprovalFor(e.id);
 
@@ -1268,7 +1446,7 @@ function paintEventDetailBody(eventId) {
       <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(e.customerAddress || "—")}</div>
       <div><span style="color:#8a8578">${t().totalRent}: </span>৳${Number(e.totalRentAmount || 0).toLocaleString()}</div>
       <div><span style="color:#8a8578">${t().collected}: </span><span class="txt-income">৳${paid.toLocaleString()}</span></div>
-      ${e.otherServiceAmount ? `<div class="col-span-2"><span style="color:#8a8578">${t().otherService}: </span>৳${Number(e.otherServiceAmount).toLocaleString()} ${e.otherServiceNote ? "— " + esc(e.otherServiceNote) : ""}</div>` : ""}
+      ${eventOtherTotal(e.id) > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().otherService}: </span>৳${eventOtherTotal(e.id).toLocaleString()}</div>` : ""}
       ${refunded > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().refund}: </span><span class="txt-expense">-৳${refunded.toLocaleString()}</span></div>` : ""}
       <div class="col-span-2 text-base font-semibold" style="color:#1B4332">${t().balance}: ৳${Math.max(balance, 0).toLocaleString()}</div>
     </div>
@@ -1277,6 +1455,7 @@ function paintEventDetailBody(eventId) {
       ${edit ? `<button id="btnEditEvent" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.pencil}${t().edit}</button>` : ""}
       ${add ? `<button id="btnAdvance" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().advance}</button>` : ""}
       ${add ? `<button id="btnDue" class="btn btn-gold" style="padding:6px 10px;font-size:12px">${icons.plus}${t().dueCollection}</button>` : ""}
+      ${add ? `<button id="btnOther" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().otherService}</button>` : ""}
       ${add ? `<button id="btnExp" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.plus}${t().eventExpenseHistory}</button>` : ""}
       ${add && paid - refunded > 0 ? `<button id="btnRefund" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${t().refund}</button>` : ""}
       ${add ? `<button id="btnCancelEvent" class="btn btn-danger" style="padding:6px 10px;font-size:12px">${t().cancelEvent}</button>` : ""}
@@ -1294,6 +1473,17 @@ function paintEventDetailBody(eventId) {
           </span>
         </li>`).join("")}</ul>` : `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
     </div>
+    ${others.length ? `<div class="mb-4">
+      <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().otherService}</h4>
+      <ul class="flex flex-col gap-1.5">${others.map(o => `
+        <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+          <span>${o.note ? esc(o.note) : "—"}</span>
+          <span class="flex items-center gap-2">
+            <span class="font-medium">৳${Number(o.amount).toLocaleString()}</span>
+            ${edit ? `<button data-editother="${o.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+          </span>
+        </li>`).join("")}</ul>
+    </div>` : ""}
     <div>
       <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().eventExpenseHistory}</h4>
       ${exps.length ? `<ul class="flex flex-col gap-1.5">${exps.map(x => `
@@ -1308,22 +1498,52 @@ function paintEventDetailBody(eventId) {
 
   const be = box.querySelector("#btnEditEvent"); if (be) be.addEventListener("click", () => openBookEventModal(e.subUnitId, e));
   const b1 = box.querySelector("#btnAdvance"); if (b1) b1.addEventListener("click", () => openEventPaymentModal(e, "advance"));
-  const b2 = box.querySelector("#btnDue"); if (b2) b2.addEventListener("click", () => openEventPaymentModal(e, "due"));
+  const b2 = box.querySelector("#btnDue"); if (b2) b2.addEventListener("click", () => openEventPaymentModal(e, "due", null, balance));
   const b3 = box.querySelector("#btnRefund"); if (b3) b3.addEventListener("click", () => openEventPaymentModal(e, "refund", paid - refunded));
   const b4 = box.querySelector("#btnExp"); if (b4) b4.addEventListener("click", () => openEventExpenseModal(e));
+  const bo = box.querySelector("#btnOther"); if (bo) bo.addEventListener("click", () => openOtherServiceModal(e));
   const b5 = box.querySelector("#btnCancelEvent"); if (b5) b5.addEventListener("click", () => openCancelEventModal(e));
   const b6 = box.querySelector("#btnDeleteEvent"); if (b6) b6.addEventListener("click", () => openDeleteEventConfirm(e));
   box.querySelectorAll("[data-editpay]").forEach(b => b.addEventListener("click", () => openEditTxnModal("eventPayments", b.getAttribute("data-editpay"), e.subUnitId)));
   box.querySelectorAll("[data-editexp]").forEach(b => b.addEventListener("click", () => openEditTxnModal("eventExpenses", b.getAttribute("data-editexp"), e.subUnitId)));
+  box.querySelectorAll("[data-editother]").forEach(b => b.addEventListener("click", () => openEditTxnModal("eventOtherServices", b.getAttribute("data-editother"), e.subUnitId)));
 }
 
-function openEventPaymentModal(ev, type, max) {
+function openOtherServiceModal(ev) {
+  openModal(t().otherService, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
+        <input id="osAmount" type="number" class="inp" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().otherServiceNote}</span>
+        <input id="osNote" class="inp" />
+      </label>
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", async () => {
+      const amount = Number(wrap.querySelector("#osAmount").value) || 0;
+      if (!amount) return;
+      await addDoc(collection(db, "eventOtherServices"), {
+        eventId: ev.id, amount, note: wrap.querySelector("#osNote").value.trim(), createdAt: serverTimestamp(),
+      });
+      wrap.remove();
+    });
+  });
+}
+
+function openEventPaymentModal(ev, type, max, defaultVal) {
   const label = type === "advance" ? t().advance : type === "due" ? t().dueCollection : t().refund;
   openModal(label, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
-        <input id="payAmount" type="number" class="inp" ${max != null ? `max="${max}"` : ""} />
+        <input id="payAmount" type="number" class="inp" ${max != null ? `max="${max}"` : ""} value="${defaultVal != null ? Math.max(defaultVal, 0) : ""}" />
       </label>
       ${max != null ? `<p class="text-xs" style="color:#8a8578">Max: ৳${max.toLocaleString()}</p>` : ""}
       <div class="flex justify-end gap-2">
@@ -1489,11 +1709,6 @@ function renderAdminPanel(el) {
   paintEventTypeGrid();
   paintEventPlaceGrid();
   paintUsersList();
-}
-
-function renderApprovalTab(el) {
-  el.innerHTML = `<div class="flex items-center gap-2 mb-4" style="color:#1B4332">${icons.bell}<h2 class="text-lg font-semibold">${t().approvalPending}</h2></div><div id="approvalList" class="flex flex-col gap-2"></div>`;
-  paintApprovalList();
 }
 
 async function adjustHijriOffset(delta) {
@@ -1774,25 +1989,63 @@ function openEventPlaceModal(existing) {
 }
 
 function targetLabel(req) {
-  if (req.targetCollection === "tenants") { const tn = tenants.find(x => x.id === req.targetId); return tn ? tn.name : req.targetId; }
-  if (req.targetCollection === "events") { const ev = events.find(x => x.id === req.targetId); return ev ? `${ev.customerName} (${ev.memoNo})` : req.targetId; }
-  return `${req.targetCollection} · ${req.targetId}`;
+  const c = req.targetCollection;
+  if (c === "tenants") { const tn = tenants.find(x => x.id === req.targetId); return tn ? tn.name : "—"; }
+  if (c === "events") { const ev = events.find(x => x.id === req.targetId); return ev ? `${ev.customerName} (${ev.memoNo})` : "—"; }
+  if (c === "rentPayments") { const p = rentPayments.find(x => x.id === req.targetId); return p ? `${p.tenantName || ""} — ${t().collectRent}` : t().collectRent; }
+  if (c === "expenses") { const x = expenses.find(y => y.id === req.targetId); return x ? `${x.tenantName || ""} — ${t().addExpense}` : t().addExpense; }
+  if (c === "eventPayments") { const p = eventPayments.find(x => x.id === req.targetId); const ev = p ? events.find(e => e.id === p.eventId) : null; return ev ? `${ev.customerName} (${ev.memoNo}) — ${t().payHistory}` : t().payHistory; }
+  if (c === "eventExpenses") { const x = eventExpenses.find(y => y.id === req.targetId); const ev = x ? events.find(e => e.id === x.eventId) : null; return ev ? `${ev.customerName} (${ev.memoNo}) — ${t().eventExpenseHistory}` : t().eventExpenseHistory; }
+  return "—";
+}
+const FIELD_LABELS = {
+  name: "name", address: "address", phone: "phone", rentAmount: "rentAmount",
+  customerName: "customerName", customerAddress: "address", totalRentAmount: "totalRent",
+  tableQty: "tableQty", boyQty: "boyQty", eventDate: "eventDate", eventTime: "eventTime",
+  bookingDate: "bookingDate", memoNo: "memoNo", amount: "amountLabel", paidDate: "bookingDate",
+  date: "bookingDate", details: "details", eventTypeIds: "eventType", placeId: "eventPlace",
+};
+function formatFieldValue(key, val) {
+  if (val == null || val === "") return "—";
+  if (key === "eventTypeIds") return (Array.isArray(val) ? val : []).map(id => eventTypes.find(e => e.id === id)?.name || id).join(", ") || "—";
+  if (key === "placeId") return placeName(val);
+  if (key === "amount" || key === "rentAmount" || key === "totalRentAmount") return `৳${Number(val).toLocaleString()}`;
+  return esc(String(val));
+}
+function diffRowsHtml(req) {
+  const before = req.before || {};
+  const after = req.changes || {};
+  return Object.keys(after).map(k => {
+    const label = t()[FIELD_LABELS[k]] || k;
+    return `<div class="flex items-center justify-between text-xs rounded-lg px-3 py-1.5" style="background:#F7F5F0">
+      <span style="color:#6B6659">${esc(label)}</span>
+      <span>${formatFieldValue(k, before[k])} → <span style="font-weight:600;color:#1B4332">${formatFieldValue(k, after[k])}</span></span>
+    </div>`;
+  }).join("");
+}
+function renderApprovalTab(el) {
+  el.innerHTML = `<div class="flex items-center gap-2 mb-4" style="color:#1B4332">${icons.bell}<h2 class="text-lg font-semibold">${t().approvalPending}</h2></div><div id="approvalList" class="flex flex-col gap-2"></div>`;
+  paintApprovalList();
 }
 function paintApprovalList() {
   const box = document.getElementById("approvalList");
   if (!box) return;
-  const pending = approvalRequests.filter(r => r.status === "pending");
-  box.innerHTML = pending.map(r => `
+  const admin = isAdmin();
+  const list = admin
+    ? approvalRequests.filter(r => r.status === "pending")
+    : approvalRequests.filter(r => r.requestedBy === currentUser.uid).sort((a, b) => (a.createdAt?.seconds || 0) < (b.createdAt?.seconds || 0) ? 1 : -1);
+  box.innerHTML = list.map(r => `
     <div class="card p-3">
-      <div class="flex items-center justify-between mb-1">
+      <div class="flex items-center justify-between mb-2">
         <div class="text-sm font-medium" style="color:#1B4332">${esc(targetLabel(r))}</div>
-        <span class="text-xs" style="color:#8a8578">${t().requestedBy}: ${esc(r.requestedByName || "")}</span>
+        ${admin ? `<span class="text-xs" style="color:#8a8578">${t().requestedBy}: ${esc(r.requestedByName || "")}</span>`
+                : `<span class="badge ${r.status === "pending" ? "badge-gold" : r.status === "approved" ? "badge-blue" : "badge-gray"}">${r.status === "pending" ? t().approvalPendingBadge : r.status === "approved" ? t().approve : t().reject}</span>`}
       </div>
-      <div class="text-xs mb-2" style="color:#6B6659">${t().changes}: ${Object.entries(r.changes || {}).map(([k,v]) => `${esc(k)}: ${esc(Array.isArray(v) ? v.join(",") : v)}`).join(" · ")}</div>
-      <div class="flex gap-2">
+      <div class="flex flex-col gap-1.5 mb-2">${diffRowsHtml(r)}</div>
+      ${admin ? `<div class="flex gap-2">
         <button data-approve="${r.id}" class="btn btn-primary" style="padding:4px 10px;font-size:12px">${icons.check}${t().approve}</button>
         <button data-reject="${r.id}" class="btn btn-outline" style="padding:4px 10px;font-size:12px">${t().reject}</button>
-      </div>
+      </div>` : ""}
     </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noRequests}</p>`;
   box.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", async () => {
     const r = approvalRequests.find(x => x.id === b.getAttribute("data-approve"));
@@ -1952,7 +2205,7 @@ function repaintCurrentTab() {
   if (tab === "adminPanel" && isAdmin()) {
     paintAdminGrid(); paintPropertyGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
   }
-  if (tab === "approvalPending" && isAdmin()) paintApprovalList();
+  if (tab === "approvalPending") paintApprovalList();
   document.querySelectorAll("[data-prop-modal]").forEach(w => { const id = w.dataset.propModal; if (id) paintPropertyDetailBody(id); });
   document.querySelectorAll("[data-event-modal]").forEach(w => { const id = w.dataset.eventModal; if (id) paintEventDetailBody(id); });
   const headerBadge = document.querySelector('[data-tab="approvalPending"] .badge');
@@ -1984,6 +2237,7 @@ function startAllListeners() {
   unsubs.push(bind("events", events));
   unsubs.push(bind("eventPayments", eventPayments));
   unsubs.push(bind("eventExpenses", eventExpenses));
+  unsubs.push(bind("eventOtherServices", eventOtherServices));
   unsubs.push(bind("approvalRequests", approvalRequests));
   unsubs.push(onSnapshot(doc(db, "settings", "global"), (snap) => {
     globalSettings = { hijriOffsetDays: 0, ...(snap.exists() ? snap.data() : {}) };
@@ -1999,7 +2253,7 @@ function stopAllListeners() {
   units.length = 0; subUnits.length = 0; allUsers.length = 0;
   expenseCategories.length = 0; eventTypes.length = 0; eventPlaces.length = 0; propertyIds.length = 0;
   tenants.length = 0; rentPayments.length = 0; expenses.length = 0;
-  events.length = 0; eventPayments.length = 0; eventExpenses.length = 0;
+  events.length = 0; eventPayments.length = 0; eventExpenses.length = 0; eventOtherServices.length = 0;
   approvalRequests.length = 0;
   globalSettings = { hijriOffsetDays: 0 };
 }

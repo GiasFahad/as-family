@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>A&amp;S Family Business — By FaBi</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
 <style>
   #tabContent, .sticky { overflow-x: hidden; max-width: 100vw; }
   * { box-sizing: border-box; }
@@ -137,6 +140,10 @@ const STR = {
     usernameLabel: "Username", loginIdLabel: "Username or Email", emailOptionalLabel: "Email (optional, can add later)",
     selectMonths: "Select Month(s)", rentSystemLabel: "Rent System", rentSystemRunning: "Running Month", rentSystemOld: "Old Month",
     rentStartLabel: "Rent Accounting Starts From", noteLabel: "Note",
+    reportPeriod: "Period", daily: "Daily", monthly2: "Monthly", yearly: "Yearly",
+    allSubUnits: "All Sub Units", totalIncome: "Total Income", totalExpenseR: "Total Expense", net: "Net",
+    downloadExcel: "Download Excel", downloadPdf: "Download PDF", noReportData: "No transactions in this period.",
+    incomeType: "Income", expenseType: "Expense", reportDate: "Date", reportSource: "Source", reportSubUnit: "Sub Unit",
     today: "Today's Events", tomorrow: "Tomorrow's Events", pendingRentsLabel: "Pending Rent",
   },
   bn: {
@@ -204,6 +211,10 @@ const STR = {
     usernameLabel: "ইউজারনেম", loginIdLabel: "ইউজারনেম বা ইমেইল", emailOptionalLabel: "ইমেইল (ঐচ্ছিক, পরে যোগ করা যাবে)",
     selectMonths: "মাস বাছাই করো", rentSystemLabel: "ভাড়ার সিস্টেম", rentSystemRunning: "চলতি মাস", rentSystemOld: "গত মাস",
     rentStartLabel: "ভাড়ার হিসাব যে মাস থেকে শুরু", noteLabel: "নোট",
+    reportPeriod: "মেয়াদ", daily: "দৈনিক", monthly2: "মাসিক", yearly: "বাৎসরিক",
+    allSubUnits: "সব সাব ইউনিট", totalIncome: "মোট আয়", totalExpenseR: "মোট খরচ", net: "নিট",
+    downloadExcel: "এক্সেল ডাউনলোড", downloadPdf: "পিডিএফ ডাউনলোড", noReportData: "এই সময়ে কোনো লেনদেন নেই।",
+    incomeType: "আয়", expenseType: "খরচ", reportDate: "তারিখ", reportSource: "উৎস", reportSubUnit: "সাব ইউনিট",
     today: "আজকের ইভেন্ট", tomorrow: "আগামীকালের ইভেন্ট", pendingRentsLabel: "বাকি ভাড়া",
   },
 };
@@ -590,7 +601,7 @@ function renderTabContent() {
   if (tab === "approvalPending") { renderApprovalTab(el); return; }
   if (tab === "dashboard") { renderDashboard(el); return; }
   if (tab === "dataEntry") { renderDataEntry(el); return; }
-  if (tab === "reports") el.innerHTML = comingSoonHtml(t().reports);
+  if (tab === "reports") { renderReports(el); return; }
 }
 
 // ---------------------------------------------------------------------------
@@ -826,6 +837,175 @@ function unitSubLabel(subUnitId) {
   const su = subUnits.find(s => s.id === subUnitId);
   const u = units.find(x => x.id === su?.unitId);
   return `${u?.name || "?"} / ${su?.name || "?"}`;
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+let reportUnit = null, reportSub = "all", reportPeriodType = "monthly", reportPeriodValue = null;
+
+function reportInPeriod(dateStr) {
+  if (!dateStr) return false;
+  if (reportPeriodType === "daily") return dateStr === reportPeriodValue;
+  if (reportPeriodType === "monthly") return dateStr.slice(0, 7) === reportPeriodValue;
+  return dateStr.slice(0, 4) === reportPeriodValue;
+}
+function defaultPeriodValue(type) {
+  const now = new Date();
+  if (type === "daily") return todayISO();
+  if (type === "monthly") return todayISO().slice(0, 7);
+  return String(now.getFullYear());
+}
+
+function computeReportTxns(subUnitIds) {
+  const txns = [];
+  rentPayments.forEach(p => {
+    if (!subUnitIds.includes(p.subUnitId)) return;
+    if (!reportInPeriod(p.paidDate)) return;
+    txns.push({ date: p.paidDate, type: "income", source: t().collectRent, subUnitId: p.subUnitId, note: p.tenantName || "", amount: p.amount });
+  });
+  expenses.forEach(x => {
+    if (!subUnitIds.includes(x.subUnitId)) return;
+    if (!reportInPeriod(x.date)) return;
+    txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: x.subUnitId, note: x.tenantName || x.details || "", amount: x.amount });
+  });
+  events.filter(e => subUnitIds.includes(e.subUnitId)).forEach(e => {
+    eventPayments.filter(p => p.eventId === e.id).forEach(p => {
+      if (!reportInPeriod(p.paidDate)) return;
+      if (p.type === "refund") {
+        txns.push({ date: p.paidDate, type: "expense", source: t().refund, subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+      } else {
+        txns.push({ date: p.paidDate, type: "income", source: p.type === "advance" ? t().advance : t().dueCollection, subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+      }
+    });
+    eventExpenses.filter(x => x.eventId === e.id).forEach(x => {
+      if (!reportInPeriod(x.date)) return;
+      txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
+    });
+  });
+  return txns.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+function renderReports(el) {
+  const myUnits = accessibleUnits();
+  if (!myUnits.length) { el.innerHTML = `<p class="text-sm" style="color:#8a8578">${t().noAccessMsg}</p>`; return; }
+  if (!reportUnit || !myUnits.some(u => u.id === reportUnit)) reportUnit = myUnits[0].id;
+  if (!reportPeriodValue) reportPeriodValue = defaultPeriodValue(reportPeriodType);
+  const mySubs = accessibleSubUnitsOf(reportUnit);
+
+  el.innerHTML = `
+    <div class="card p-4 mb-5">
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().selectUnit}</span>
+          <select id="rpUnit" class="inp">${myUnits.map(u => `<option value="${u.id}" ${u.id === reportUnit ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().selectSubUnit}</span>
+          <select id="rpSub" class="inp">
+            <option value="all" ${reportSub === "all" ? "selected" : ""}>${t().allSubUnits}</option>
+            ${mySubs.map(s => `<option value="${s.id}" ${reportSub === s.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().reportPeriod}</span>
+          <select id="rpType" class="inp">
+            <option value="daily" ${reportPeriodType === "daily" ? "selected" : ""}>${t().daily}</option>
+            <option value="monthly" ${reportPeriodType === "monthly" ? "selected" : ""}>${t().monthly2}</option>
+            <option value="yearly" ${reportPeriodType === "yearly" ? "selected" : ""}>${t().yearly}</option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">&nbsp;</span>
+          <input id="rpValue" class="inp" type="${reportPeriodType === "daily" ? "date" : reportPeriodType === "monthly" ? "month" : "number"}" value="${reportPeriodValue}" />
+        </label>
+      </div>
+    </div>
+    <div id="reportBody"></div>`;
+
+  document.getElementById("rpUnit").addEventListener("change", (e) => { reportUnit = e.target.value; reportSub = "all"; renderReports(el); });
+  document.getElementById("rpSub").addEventListener("change", (e) => { reportSub = e.target.value; paintReportBody(); });
+  document.getElementById("rpType").addEventListener("change", (e) => { reportPeriodType = e.target.value; reportPeriodValue = defaultPeriodValue(reportPeriodType); renderReports(el); });
+  document.getElementById("rpValue").addEventListener("change", (e) => { reportPeriodValue = e.target.value; paintReportBody(); });
+
+  paintReportBody();
+}
+
+function paintReportBody() {
+  const body = document.getElementById("reportBody");
+  if (!body) return;
+  const mySubs = accessibleSubUnitsOf(reportUnit);
+  const subUnitIds = reportSub === "all" ? mySubs.map(s => s.id) : [reportSub];
+  const txns = computeReportTxns(subUnitIds);
+  const totalIncome = txns.filter(x => x.type === "income").reduce((s, x) => s + x.amount, 0);
+  const totalExpense = txns.filter(x => x.type === "expense").reduce((s, x) => s + x.amount, 0);
+
+  body.innerHTML = `
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalIncome}</div>
+        <div class="text-base font-semibold txt-income">৳${totalIncome.toLocaleString()}</div>
+      </div>
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().totalExpenseR}</div>
+        <div class="text-base font-semibold txt-expense">৳${totalExpense.toLocaleString()}</div>
+      </div>
+      <div class="rounded-xl p-3" style="background:#F7F5F0">
+        <div class="text-xs" style="color:#8a8578">${t().net}</div>
+        <div class="text-base font-semibold" style="color:#1B4332">৳${(totalIncome - totalExpense).toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="flex gap-2 mb-5">
+      <button id="rpExcelBtn" class="btn btn-outline" style="padding:6px 12px;font-size:12px">${icons.report}${t().downloadExcel}</button>
+      <button id="rpPdfBtn" class="btn btn-outline" style="padding:6px 12px;font-size:12px">${icons.report}${t().downloadPdf}</button>
+    </div>
+    <div class="flex flex-col gap-2">
+      ${txns.map(x => `
+        <div class="card p-3 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-sm font-medium truncate2">${esc(x.source)}</div>
+            <div class="text-xs truncate2" style="color:#8a8578">${esc(unitSubLabel(x.subUnitId))} ${x.note ? "· " + esc(x.note) : ""} · ${esc(x.date)}</div>
+          </div>
+          <span class="${x.type === "income" ? "txt-income" : "txt-expense"} font-medium" style="flex-shrink:0">${x.type === "income" ? "" : "-"}৳${x.amount.toLocaleString()}</span>
+        </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noReportData}</p>`}
+    </div>`;
+
+  document.getElementById("rpExcelBtn").addEventListener("click", () => exportReportExcel(txns));
+  document.getElementById("rpPdfBtn").addEventListener("click", () => exportReportPdf(txns, totalIncome, totalExpense));
+}
+
+function exportReportExcel(txns) {
+  try {
+    const rows = txns.map(x => ({
+      [t().reportDate]: x.date,
+      [t().reportSubUnit]: unitSubLabel(x.subUnitId),
+      [t().reportSource]: x.source,
+      [t().details]: x.note,
+      [t().status]: x.type === "income" ? t().incomeType : t().expenseType,
+      [t().amountLabel]: x.type === "income" ? x.amount : -x.amount,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, `report-${reportPeriodValue}.xlsx`);
+  } catch (e) { alert("Excel export failed: " + e.message); }
+}
+function exportReportPdf(txns, totalIncome, totalExpense) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc2 = new jsPDF();
+    doc2.setFontSize(14);
+    doc2.text("A&S Family Business — Report", 14, 15);
+    doc2.setFontSize(10);
+    doc2.text(`Period: ${reportPeriodValue}   Income: ৳${totalIncome}   Expense: ৳${totalExpense}   Net: ৳${totalIncome - totalExpense}`, 14, 22);
+    doc2.autoTable({
+      startY: 28,
+      head: [[t().reportDate, t().reportSubUnit, t().reportSource, t().details, t().status, t().amountLabel]],
+      body: txns.map(x => [x.date, unitSubLabel(x.subUnitId), x.source, x.note, x.type === "income" ? t().incomeType : t().expenseType, (x.type === "income" ? "" : "-") + x.amount]),
+      styles: { fontSize: 8 },
+    });
+    doc2.save(`report-${reportPeriodValue}.pdf`);
+  } catch (e) { alert("PDF export failed: " + e.message); }
 }
 
 // ---------------------------------------------------------------------------
@@ -1570,7 +1750,7 @@ function openOtherServiceModal(ev) {
       const amount = Number(wrap.querySelector("#osAmount").value) || 0;
       if (!amount) return;
       await addDoc(collection(db, "eventOtherServices"), {
-        eventId: ev.id, amount, note: wrap.querySelector("#osNote").value.trim(), createdAt: serverTimestamp(),
+        eventId: ev.id, amount, note: wrap.querySelector("#osNote").value.trim(), date: todayISO(), createdAt: serverTimestamp(),
       });
       wrap.remove();
     });
@@ -1630,7 +1810,7 @@ function openEventExpenseModal(ev) {
       if (!amount) return;
       await addDoc(collection(db, "eventExpenses"), {
         eventId: ev.id, categoryId: wrap.querySelector("#expCat").value,
-        amount, details: wrap.querySelector("#expDetails").value.trim(), createdAt: serverTimestamp(),
+        amount, details: wrap.querySelector("#expDetails").value.trim(), date: todayISO(), createdAt: serverTimestamp(),
       });
       wrap.remove();
     });

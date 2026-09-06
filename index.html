@@ -7,7 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   #tabContent, .sticky { overflow-x: hidden; max-width: 100vw; }
   * { box-sizing: border-box; }
@@ -144,6 +144,8 @@ const STR = {
     allSubUnits: "All Sub Units", totalIncome: "Total Income", totalExpenseR: "Total Expense", net: "Net",
     downloadExcel: "Download Excel", downloadPdf: "Download PDF", noReportData: "No transactions in this period.",
     incomeType: "Income", expenseType: "Expense", reportDate: "Date", reportSource: "Source", reportSubUnit: "Sub Unit",
+    canViewReports: "Can View Reports", canDownloadReports: "Can Download Reports",
+    dateRange: "Date Range", rangeFrom: "From", rangeTo: "To", allProperties: "All Shop/House IDs", selectPropertyId: "Select ID",
     today: "Today's Events", tomorrow: "Tomorrow's Events", pendingRentsLabel: "Pending Rent",
   },
   bn: {
@@ -215,6 +217,8 @@ const STR = {
     allSubUnits: "সব সাব ইউনিট", totalIncome: "মোট আয়", totalExpenseR: "মোট খরচ", net: "নিট",
     downloadExcel: "এক্সেল ডাউনলোড", downloadPdf: "পিডিএফ ডাউনলোড", noReportData: "এই সময়ে কোনো লেনদেন নেই।",
     incomeType: "আয়", expenseType: "খরচ", reportDate: "তারিখ", reportSource: "উৎস", reportSubUnit: "সাব ইউনিট",
+    canViewReports: "রিপোর্ট দেখতে পারবে", canDownloadReports: "রিপোর্ট ডাউনলোড করতে পারবে",
+    dateRange: "তারিখের রেঞ্জ", rangeFrom: "থেকে", rangeTo: "পর্যন্ত", allProperties: "সব দোকান/বাসা আইডি", selectPropertyId: "আইডি বাছাই করো",
     today: "আজকের ইভেন্ট", tomorrow: "আগামীকালের ইভেন্ট", pendingRentsLabel: "বাকি ভাড়া",
   },
 };
@@ -547,7 +551,10 @@ function myPendingCount() {
 function renderApp() {
   const admin = isAdmin();
   const roleLabel = admin ? t().admin_r : t().user_r;
-  const visibleTabs = TABS.filter(tb => !tb.adminOnly || admin);
+  const visibleTabs = TABS.filter(tb => {
+    if (tb.key === "reports") return admin || profile.canViewReports;
+    return !tb.adminOnly || admin;
+  });
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
   const pendingCount = myPendingCount();
 
@@ -842,56 +849,63 @@ function unitSubLabel(subUnitId) {
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
-let reportUnit = null, reportSub = "all", reportPeriodType = "monthly", reportPeriodValue = null;
+let reportUnit = null, reportSub = "all", reportProperty = "all";
+let reportPeriodType = "monthly", reportPeriodValue = null;
+let reportRangeStart = null, reportRangeEnd = null;
+let reportChartInstance = null;
 
 function reportInPeriod(dateStr) {
   if (!dateStr) return false;
   if (reportPeriodType === "daily") return dateStr === reportPeriodValue;
   if (reportPeriodType === "monthly") return dateStr.slice(0, 7) === reportPeriodValue;
+  if (reportPeriodType === "range") return dateStr >= reportRangeStart && dateStr <= reportRangeEnd;
   return dateStr.slice(0, 4) === reportPeriodValue;
 }
 function defaultPeriodValue(type) {
   const now = new Date();
   if (type === "daily") return todayISO();
   if (type === "monthly") return todayISO().slice(0, 7);
-  return String(now.getFullYear());
+  if (type === "yearly") return String(now.getFullYear());
+  return null;
 }
 
-function computeReportTxns(subUnitIds) {
+function computeAllTxns(subUnitIds) {
   const txns = [];
   rentPayments.forEach(p => {
     if (!subUnitIds.includes(p.subUnitId)) return;
-    if (!reportInPeriod(p.paidDate)) return;
-    txns.push({ date: p.paidDate, type: "income", source: t().collectRent, subUnitId: p.subUnitId, note: p.tenantName || "", amount: p.amount });
+    txns.push({ date: p.paidDate, type: "income", source: t().collectRent, subUnitId: p.subUnitId, propertyId: p.propertyId || null, note: p.tenantName || "", amount: p.amount });
   });
   expenses.forEach(x => {
     if (!subUnitIds.includes(x.subUnitId)) return;
-    if (!reportInPeriod(x.date)) return;
-    txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: x.subUnitId, note: x.tenantName || x.details || "", amount: x.amount });
+    txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: x.subUnitId, propertyId: x.propertyId || null, note: x.tenantName || x.details || "", amount: x.amount });
   });
   events.filter(e => subUnitIds.includes(e.subUnitId)).forEach(e => {
     eventPayments.filter(p => p.eventId === e.id).forEach(p => {
-      if (!reportInPeriod(p.paidDate)) return;
       if (p.type === "refund") {
-        txns.push({ date: p.paidDate, type: "expense", source: t().refund, subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+        txns.push({ date: p.paidDate, type: "expense", source: t().refund, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
       } else {
-        txns.push({ date: p.paidDate, type: "income", source: p.type === "advance" ? t().advance : t().dueCollection, subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+        txns.push({ date: p.paidDate, type: "income", source: p.type === "advance" ? t().advance : t().dueCollection, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
       }
     });
     eventExpenses.filter(x => x.eventId === e.id).forEach(x => {
-      if (!reportInPeriod(x.date)) return;
-      txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
+      txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
     });
   });
-  return txns.sort((a, b) => (a.date < b.date ? 1 : -1));
+  return txns;
+}
+function computeReportTxns(subUnitIds) {
+  return computeAllTxns(subUnitIds).filter(x => reportInPeriod(x.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
 function renderReports(el) {
   const myUnits = accessibleUnits();
   if (!myUnits.length) { el.innerHTML = `<p class="text-sm" style="color:#8a8578">${t().noAccessMsg}</p>`; return; }
   if (!reportUnit || !myUnits.some(u => u.id === reportUnit)) reportUnit = myUnits[0].id;
-  if (!reportPeriodValue) reportPeriodValue = defaultPeriodValue(reportPeriodType);
+  if (reportPeriodType !== "range" && !reportPeriodValue) reportPeriodValue = defaultPeriodValue(reportPeriodType);
+  if (reportPeriodType === "range" && !reportRangeStart) { reportRangeStart = todayISO(); reportRangeEnd = todayISO(); }
   const mySubs = accessibleSubUnitsOf(reportUnit);
+  const selectedSubUnit = subUnits.find(s => s.id === reportSub);
+  const showPropertyFilter = reportSub !== "all" && selectedSubUnit && selectedSubUnit.billingType !== "perEvent";
 
   el.innerHTML = `
     <div class="card p-4 mb-5">
@@ -913,22 +927,100 @@ function renderReports(el) {
             <option value="daily" ${reportPeriodType === "daily" ? "selected" : ""}>${t().daily}</option>
             <option value="monthly" ${reportPeriodType === "monthly" ? "selected" : ""}>${t().monthly2}</option>
             <option value="yearly" ${reportPeriodType === "yearly" ? "selected" : ""}>${t().yearly}</option>
+            <option value="range" ${reportPeriodType === "range" ? "selected" : ""}>${t().dateRange}</option>
           </select>
         </label>
+        ${reportPeriodType === "range" ? `
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().rangeFrom}</span><input id="rpFrom" type="date" class="inp" value="${reportRangeStart}" /></label>
+          <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().rangeTo}</span><input id="rpTo" type="date" class="inp" value="${reportRangeEnd}" /></label>
+        </div>` : `
         <label class="flex flex-col gap-1 text-sm">
           <span class="font-medium" style="color:#6B6659">&nbsp;</span>
           <input id="rpValue" class="inp" type="${reportPeriodType === "daily" ? "date" : reportPeriodType === "monthly" ? "month" : "number"}" value="${reportPeriodValue}" />
-        </label>
+        </label>`}
+        ${showPropertyFilter ? `
+        <label class="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span class="font-medium" style="color:#6B6659">${t().selectPropertyId}</span>
+          <select id="rpProperty" class="inp">
+            <option value="all" ${reportProperty === "all" ? "selected" : ""}>${t().allProperties}</option>
+            ${propertyIds.filter(p => p.subUnitId === reportSub).map(p => `<option value="${p.id}" ${reportProperty === p.id ? "selected" : ""}>${esc(p.label)}</option>`).join("")}
+          </select>
+        </label>` : ""}
       </div>
+    </div>
+    <div class="card p-4 mb-5">
+      <canvas id="reportChart" height="180"></canvas>
     </div>
     <div id="reportBody"></div>`;
 
-  document.getElementById("rpUnit").addEventListener("change", (e) => { reportUnit = e.target.value; reportSub = "all"; renderReports(el); });
-  document.getElementById("rpSub").addEventListener("change", (e) => { reportSub = e.target.value; paintReportBody(); });
-  document.getElementById("rpType").addEventListener("change", (e) => { reportPeriodType = e.target.value; reportPeriodValue = defaultPeriodValue(reportPeriodType); renderReports(el); });
-  document.getElementById("rpValue").addEventListener("change", (e) => { reportPeriodValue = e.target.value; paintReportBody(); });
+  document.getElementById("rpUnit").addEventListener("change", (e) => { reportUnit = e.target.value; reportSub = "all"; reportProperty = "all"; renderReports(el); });
+  document.getElementById("rpSub").addEventListener("change", (e) => { reportSub = e.target.value; reportProperty = "all"; renderReports(el); });
+  document.getElementById("rpType").addEventListener("change", (e) => {
+    reportPeriodType = e.target.value;
+    if (reportPeriodType === "range") { reportRangeStart = todayISO(); reportRangeEnd = todayISO(); }
+    else reportPeriodValue = defaultPeriodValue(reportPeriodType);
+    renderReports(el);
+  });
+  const rpValue = document.getElementById("rpValue");
+  if (rpValue) rpValue.addEventListener("change", (e) => { reportPeriodValue = e.target.value; paintReportBody(); });
+  const rpFrom = document.getElementById("rpFrom"), rpTo = document.getElementById("rpTo");
+  if (rpFrom) rpFrom.addEventListener("change", (e) => { reportRangeStart = e.target.value; paintReportBody(); });
+  if (rpTo) rpTo.addEventListener("change", (e) => { reportRangeEnd = e.target.value; paintReportBody(); });
+  const rpProperty = document.getElementById("rpProperty");
+  if (rpProperty) rpProperty.addEventListener("change", (e) => { reportProperty = e.target.value; paintReportBody(); });
 
   paintReportBody();
+}
+
+function computeChartBuckets(subUnitIds) {
+  const all = computeAllTxns(subUnitIds).filter(x => reportProperty === "all" || x.propertyId === reportProperty);
+  let labels = [], keys = [];
+  if (reportPeriodType === "daily") {
+    const [y, m] = reportPeriodValue.split("-").map(Number);
+    const days = new Date(y, m, 0).getDate();
+    for (let d = 1; d <= days; d++) { labels.push(String(d)); keys.push(`${reportPeriodValue}-${String(d).padStart(2, "0")}`); }
+    var bucketOf = (date) => date;
+  } else if (reportPeriodType === "monthly") {
+    const y = reportPeriodValue.slice(0, 4);
+    for (let m = 1; m <= 12; m++) { labels.push(GREG_MONTHS[m - 1]); keys.push(`${y}-${String(m).padStart(2, "0")}`); }
+    var bucketOf = (date) => date.slice(0, 7);
+  } else if (reportPeriodType === "yearly") {
+    const endY = Number(reportPeriodValue);
+    for (let y = endY - 9; y <= endY; y++) { labels.push(String(y)); keys.push(String(y)); }
+    var bucketOf = (date) => date.slice(0, 4);
+  } else {
+    let cur = reportRangeStart;
+    let guard = 0;
+    while (cur <= reportRangeEnd && guard < 120) { labels.push(cur.slice(5)); keys.push(cur); cur = new Date(new Date(cur).getTime() + 86400000).toISOString().slice(0, 10); guard++; }
+    var bucketOf = (date) => date;
+  }
+  const incomeMap = {}, expenseMap = {};
+  keys.forEach(k => { incomeMap[k] = 0; expenseMap[k] = 0; });
+  all.forEach(x => {
+    const k = bucketOf(x.date);
+    if (!(k in incomeMap)) return;
+    if (x.type === "income") incomeMap[k] += x.amount; else expenseMap[k] += x.amount;
+  });
+  return { labels, income: keys.map(k => incomeMap[k]), expense: keys.map(k => expenseMap[k]) };
+}
+
+function paintReportChart(subUnitIds) {
+  const canvas = document.getElementById("reportChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  const { labels, income, expense } = computeChartBuckets(subUnitIds);
+  if (reportChartInstance) { reportChartInstance.destroy(); reportChartInstance = null; }
+  reportChartInstance = new Chart(canvas.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: t().totalIncome, data: income, backgroundColor: "#1D4ED8" },
+        { label: t().totalExpenseR, data: expense, backgroundColor: "#8B5A2B" },
+      ],
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } },
+  });
 }
 
 function paintReportBody() {
@@ -936,9 +1028,13 @@ function paintReportBody() {
   if (!body) return;
   const mySubs = accessibleSubUnitsOf(reportUnit);
   const subUnitIds = reportSub === "all" ? mySubs.map(s => s.id) : [reportSub];
-  const txns = computeReportTxns(subUnitIds);
+  let txns = computeReportTxns(subUnitIds);
+  if (reportProperty !== "all") txns = txns.filter(x => x.propertyId === reportProperty);
   const totalIncome = txns.filter(x => x.type === "income").reduce((s, x) => s + x.amount, 0);
   const totalExpense = txns.filter(x => x.type === "expense").reduce((s, x) => s + x.amount, 0);
+  const canDownload = isAdmin() || profile.canDownloadReports;
+
+  paintReportChart(subUnitIds);
 
   body.innerHTML = `
     <div class="grid grid-cols-3 gap-3 mb-5">
@@ -955,10 +1051,10 @@ function paintReportBody() {
         <div class="text-base font-semibold" style="color:#1B4332">৳${(totalIncome - totalExpense).toLocaleString()}</div>
       </div>
     </div>
-    <div class="flex gap-2 mb-5">
+    ${canDownload ? `<div class="flex gap-2 mb-5">
       <button id="rpExcelBtn" class="btn btn-outline" style="padding:6px 12px;font-size:12px">${icons.report}${t().downloadExcel}</button>
       <button id="rpPdfBtn" class="btn btn-outline" style="padding:6px 12px;font-size:12px">${icons.report}${t().downloadPdf}</button>
-    </div>
+    </div>` : ""}
     <div class="flex flex-col gap-2">
       ${txns.map(x => `
         <div class="card p-3 flex items-center justify-between gap-2">
@@ -970,8 +1066,10 @@ function paintReportBody() {
         </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noReportData}</p>`}
     </div>`;
 
-  document.getElementById("rpExcelBtn").addEventListener("click", () => exportReportExcel(txns));
-  document.getElementById("rpPdfBtn").addEventListener("click", () => exportReportPdf(txns, totalIncome, totalExpense));
+  if (canDownload) {
+    document.getElementById("rpExcelBtn").addEventListener("click", () => exportReportExcel(txns));
+    document.getElementById("rpPdfBtn").addEventListener("click", () => exportReportPdf(txns, totalIncome, totalExpense));
+  }
 }
 
 function exportReportExcel(txns) {
@@ -994,15 +1092,41 @@ function exportReportPdf(txns, totalIncome, totalExpense) {
   try {
     const { jsPDF } = window.jspdf;
     const doc2 = new jsPDF();
-    doc2.setFontSize(14);
-    doc2.text("A&S Family Business — Report", 14, 15);
-    doc2.setFontSize(10);
-    doc2.text(`Period: ${reportPeriodValue}   Income: ৳${totalIncome}   Expense: ৳${totalExpense}   Net: ৳${totalIncome - totalExpense}`, 14, 22);
-    doc2.autoTable({
-      startY: 28,
-      head: [[t().reportDate, t().reportSubUnit, t().reportSource, t().details, t().status, t().amountLabel]],
-      body: txns.map(x => [x.date, unitSubLabel(x.subUnitId), x.source, x.note, x.type === "income" ? t().incomeType : t().expenseType, (x.type === "income" ? "" : "-") + x.amount]),
-      styles: { fontSize: 8 },
+    const pageHeight = doc2.internal.pageSize.getHeight();
+    const marginLeft = 10;
+    const colX = [10, 32, 62, 92, 132, 155, 178];
+    const colW = [22, 30, 30, 40, 23, 23, 20];
+    let y = 15;
+
+    function header() {
+      doc2.setFontSize(13);
+      doc2.setFont(undefined, "bold");
+      doc2.text("A&S Family Business - Report", marginLeft, y);
+      y += 7;
+      doc2.setFontSize(9);
+      doc2.setFont(undefined, "normal");
+      doc2.text(`Period: ${reportPeriodValue}   Income: Tk ${totalIncome}   Expense: Tk ${totalExpense}   Net: Tk ${totalIncome - totalExpense}`, marginLeft, y);
+      y += 8;
+      doc2.setFontSize(8);
+      doc2.setFont(undefined, "bold");
+      const heads = ["Date", "Sub Unit", "Source", "Note", "Type", "Amount"];
+      heads.forEach((h, i) => doc2.text(h, colX[i], y));
+      y += 2;
+      doc2.line(marginLeft, y, 200, y);
+      y += 5;
+      doc2.setFont(undefined, "normal");
+    }
+    function truncate(s, n) { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "." : s; }
+
+    header();
+    txns.forEach(x => {
+      if (y > pageHeight - 15) { doc2.addPage(); y = 15; header(); }
+      const row = [
+        x.date, truncate(unitSubLabel(x.subUnitId), 16), truncate(x.source, 20), truncate(x.note, 22),
+        x.type === "income" ? "Income" : "Expense", `${x.type === "income" ? "" : "-"}Tk ${x.amount}`,
+      ];
+      row.forEach((val, i) => doc2.text(String(val), colX[i], y));
+      y += 6;
     });
     doc2.save(`report-${reportPeriodValue}.pdf`);
   } catch (e) { alert("PDF export failed: " + e.message); }
@@ -2424,6 +2548,8 @@ function openAddUserModal() {
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().password}</span><input id="uPassword" type="password" class="inp" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" /><span>${t().isAdminUser}</span></label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanViewReports" /><span>${t().canViewReports}</span></label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanDownloadReports" /><span>${t().canDownloadReports}</span></label>
       <div id="uPermsWrap">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml({})}</div>
@@ -2452,7 +2578,9 @@ function openAddUserModal() {
         await signOut(secAuth);
         await deleteApp(secApp);
         await setDoc(doc(db, "users", newUid), {
-          name, username, email: realEmail || "", role: isAdminUser ? "admin" : "user", active: true, permissions, createdAt: serverTimestamp(),
+          name, username, email: realEmail || "", role: isAdminUser ? "admin" : "user", active: true, permissions,
+          canViewReports: wrap.querySelector("#uCanViewReports").checked, canDownloadReports: wrap.querySelector("#uCanDownloadReports").checked,
+          createdAt: serverTimestamp(),
         });
         await setDoc(doc(db, "usernameIndex", username), { email: authEmail });
         wrap.remove();
@@ -2469,6 +2597,8 @@ function openEditUserModal(user) {
       <p class="text-xs" style="color:#8a8578">@${esc(user.username || "")}</p>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" value="${esc(user.email || "")}" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} /><span>${t().isAdminUser}</span></label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanViewReports" ${user.canViewReports ? "checked" : ""} /><span>${t().canViewReports}</span></label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanDownloadReports" ${user.canDownloadReports ? "checked" : ""} /><span>${t().canDownloadReports}</span></label>
       <div id="uPermsWrap" style="${isAdminUser0 ? "display:none" : ""}">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml(user.permissions)}</div>
@@ -2491,7 +2621,10 @@ function openEditUserModal(user) {
       const isAdminUser = wrap.querySelector("#uIsAdmin").checked;
       const permissions = isAdminUser ? {} : readPermMatrix(wrap);
       if (!name) return;
-      await updateDoc(doc(db, "users", user.id), { name, email, role: isAdminUser ? "admin" : "user", permissions });
+      await updateDoc(doc(db, "users", user.id), {
+        name, email, role: isAdminUser ? "admin" : "user", permissions,
+        canViewReports: wrap.querySelector("#uCanViewReports").checked, canDownloadReports: wrap.querySelector("#uCanDownloadReports").checked,
+      });
       wrap.remove();
     });
   });
@@ -2507,6 +2640,7 @@ function repaintCurrentTab() {
     paintAdminGrid(); paintPropertyGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
   }
   if (tab === "approvalPending") paintApprovalList();
+  if (tab === "reports") paintReportBody();
   document.querySelectorAll("[data-prop-modal]").forEach(w => { const id = w.dataset.propModal; if (id) paintPropertyDetailBody(id); });
   document.querySelectorAll("[data-event-modal]").forEach(w => { const id = w.dataset.eventModal; if (id) paintEventDetailBody(id); });
   const headerBadge = document.querySelector('[data-tab="approvalPending"] .badge');

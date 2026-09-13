@@ -432,13 +432,15 @@ function renderDisabled() {
 // ---------------------------------------------------------------------------
 function isAdmin() { return !!(profile && profile.role === "admin"); }
 function permFor(subUnitId) {
-  if (isAdmin()) return { view: true, add: true, edit: true };
+  if (isAdmin()) return { view: true, add: true, edit: true, reportView: true, reportDownload: true };
   const p = (profile && profile.permissions && profile.permissions[subUnitId]) || {};
-  return { view: !!p.view, add: !!p.add, edit: !!p.edit };
+  return { view: !!p.view, add: !!p.add, edit: !!p.edit, reportView: !!p.reportView, reportDownload: !!p.reportDownload };
 }
 function canView(subUnitId) { const p = permFor(subUnitId); return p.view || p.add || p.edit; }
 function canAdd(subUnitId) { return permFor(subUnitId).add; }
 function canEdit(subUnitId) { return permFor(subUnitId).edit; }
+function canReportView(subUnitId) { return permFor(subUnitId).reportView; }
+function canReportDownload(subUnitId) { return permFor(subUnitId).reportDownload; }
 function accessibleUnits() {
   if (isAdmin()) return units;
   const okSubUnitIds = new Set(subUnits.filter(s => canView(s.id)).map(s => s.id));
@@ -447,6 +449,15 @@ function accessibleUnits() {
 function accessibleSubUnitsOf(unitId) {
   const list = subUnits.filter(s => s.unitId === unitId);
   return isAdmin() ? list : list.filter(s => canView(s.id));
+}
+function accessibleReportUnits() {
+  if (isAdmin()) return units;
+  const okSubUnitIds = new Set(subUnits.filter(s => canReportView(s.id)).map(s => s.id));
+  return units.filter(u => subUnits.some(s => s.unitId === u.id && okSubUnitIds.has(s.id)));
+}
+function accessibleReportSubUnitsOf(unitId) {
+  const list = subUnits.filter(s => s.unitId === unitId);
+  return isAdmin() ? list : list.filter(s => canReportView(s.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -552,7 +563,7 @@ function renderApp() {
   const admin = isAdmin();
   const roleLabel = admin ? t().admin_r : t().user_r;
   const visibleTabs = TABS.filter(tb => {
-    if (tb.key === "reports") return admin || profile.canViewReports;
+    if (tb.key === "reports") return admin || accessibleReportUnits().length > 0;
     return !tb.adminOnly || admin;
   });
   if (!visibleTabs.some(tb => tb.key === tab)) tab = "dashboard";
@@ -873,22 +884,22 @@ function computeAllTxns(subUnitIds) {
   const txns = [];
   rentPayments.forEach(p => {
     if (!subUnitIds.includes(p.subUnitId)) return;
-    txns.push({ date: p.paidDate, type: "income", source: t().collectRent, subUnitId: p.subUnitId, propertyId: p.propertyId || null, note: p.tenantName || "", amount: p.amount });
+    txns.push({ id: p.id, coll: "rentPayments", date: p.paidDate, type: "income", source: t().collectRent, subUnitId: p.subUnitId, propertyId: p.propertyId || null, note: p.tenantName || "", amount: p.amount });
   });
   expenses.forEach(x => {
     if (!subUnitIds.includes(x.subUnitId)) return;
-    txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: x.subUnitId, propertyId: x.propertyId || null, note: x.tenantName || x.details || "", amount: x.amount });
+    txns.push({ id: x.id, coll: "expenses", date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: x.subUnitId, propertyId: x.propertyId || null, note: x.tenantName || x.details || "", amount: x.amount });
   });
   events.filter(e => subUnitIds.includes(e.subUnitId)).forEach(e => {
     eventPayments.filter(p => p.eventId === e.id).forEach(p => {
       if (p.type === "refund") {
-        txns.push({ date: p.paidDate, type: "expense", source: t().refund, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+        txns.push({ id: p.id, coll: "eventPayments", date: p.paidDate, type: "expense", source: t().refund, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
       } else {
-        txns.push({ date: p.paidDate, type: "income", source: p.type === "advance" ? t().advance : t().dueCollection, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
+        txns.push({ id: p.id, coll: "eventPayments", date: p.paidDate, type: "income", source: p.type === "advance" ? t().advance : t().dueCollection, subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: p.amount });
       }
     });
     eventExpenses.filter(x => x.eventId === e.id).forEach(x => {
-      txns.push({ date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
+      txns.push({ id: x.id, coll: "eventExpenses", date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
     });
   });
   return txns;
@@ -898,12 +909,12 @@ function computeReportTxns(subUnitIds) {
 }
 
 function renderReports(el) {
-  const myUnits = accessibleUnits();
+  const myUnits = accessibleReportUnits();
   if (!myUnits.length) { el.innerHTML = `<p class="text-sm" style="color:#8a8578">${t().noAccessMsg}</p>`; return; }
   if (!reportUnit || !myUnits.some(u => u.id === reportUnit)) reportUnit = myUnits[0].id;
   if (reportPeriodType !== "range" && !reportPeriodValue) reportPeriodValue = defaultPeriodValue(reportPeriodType);
   if (reportPeriodType === "range" && !reportRangeStart) { reportRangeStart = todayISO(); reportRangeEnd = todayISO(); }
-  const mySubs = accessibleSubUnitsOf(reportUnit);
+  const mySubs = accessibleReportSubUnitsOf(reportUnit);
   const selectedSubUnit = subUnits.find(s => s.id === reportSub);
   const showPropertyFilter = reportSub !== "all" && selectedSubUnit && selectedSubUnit.billingType !== "perEvent";
 
@@ -986,8 +997,11 @@ function computeChartBuckets(subUnitIds) {
     for (let m = 1; m <= 12; m++) { labels.push(GREG_MONTHS[m - 1]); keys.push(`${y}-${String(m).padStart(2, "0")}`); }
     var bucketOf = (date) => date.slice(0, 7);
   } else if (reportPeriodType === "yearly") {
-    const endY = Number(reportPeriodValue);
-    for (let y = endY - 9; y <= endY; y++) { labels.push(String(y)); keys.push(String(y)); }
+    const now = new Date();
+    const years = all.map(x => Number(x.date.slice(0, 4))).filter(y => !isNaN(y) && y > 1900);
+    const minY = years.length ? Math.min(...years, now.getFullYear()) : now.getFullYear();
+    const maxY = years.length ? Math.max(...years, now.getFullYear()) : now.getFullYear();
+    for (let y = minY; y <= maxY; y++) { labels.push(String(y)); keys.push(String(y)); }
     var bucketOf = (date) => date.slice(0, 4);
   } else {
     let cur = reportRangeStart;
@@ -1026,13 +1040,13 @@ function paintReportChart(subUnitIds) {
 function paintReportBody() {
   const body = document.getElementById("reportBody");
   if (!body) return;
-  const mySubs = accessibleSubUnitsOf(reportUnit);
+  const mySubs = accessibleReportSubUnitsOf(reportUnit);
   const subUnitIds = reportSub === "all" ? mySubs.map(s => s.id) : [reportSub];
   let txns = computeReportTxns(subUnitIds);
   if (reportProperty !== "all") txns = txns.filter(x => x.propertyId === reportProperty);
   const totalIncome = txns.filter(x => x.type === "income").reduce((s, x) => s + x.amount, 0);
   const totalExpense = txns.filter(x => x.type === "expense").reduce((s, x) => s + x.amount, 0);
-  const canDownload = isAdmin() || profile.canDownloadReports;
+  const canDownload = isAdmin() || subUnitIds.every(id => canReportDownload(id));
 
   paintReportChart(subUnitIds);
 
@@ -1056,13 +1070,16 @@ function paintReportBody() {
       <button id="rpPdfBtn" class="btn btn-outline" style="padding:6px 12px;font-size:12px">${icons.report}${t().downloadPdf}</button>
     </div>` : ""}
     <div class="flex flex-col gap-2">
-      ${txns.map(x => `
+      ${txns.map((x, i) => `
         <div class="card p-3 flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-medium truncate2">${esc(x.source)}</div>
             <div class="text-xs truncate2" style="color:#8a8578">${esc(unitSubLabel(x.subUnitId))} ${x.note ? "· " + esc(x.note) : ""} · ${esc(x.date)}</div>
           </div>
-          <span class="${x.type === "income" ? "txt-income" : "txt-expense"} font-medium" style="flex-shrink:0">${x.type === "income" ? "" : "-"}৳${x.amount.toLocaleString()}</span>
+          <div class="flex items-center gap-2" style="flex-shrink:0">
+            <span class="${x.type === "income" ? "txt-income" : "txt-expense"} font-medium">${x.type === "income" ? "" : "-"}৳${x.amount.toLocaleString()}</span>
+            ${isAdmin() ? `<button data-rpdelete="${i}" style="color:#9B2C2C">${icons.trash}</button>` : ""}
+          </div>
         </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noReportData}</p>`}
     </div>`;
 
@@ -1070,6 +1087,11 @@ function paintReportBody() {
     document.getElementById("rpExcelBtn").addEventListener("click", () => exportReportExcel(txns));
     document.getElementById("rpPdfBtn").addEventListener("click", () => exportReportPdf(txns, totalIncome, totalExpense));
   }
+  body.querySelectorAll("[data-rpdelete]").forEach(b => b.addEventListener("click", () => {
+    const x = txns[Number(b.getAttribute("data-rpdelete"))];
+    if (!x) return;
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, x.coll, x.id)); });
+  }));
 }
 
 function exportReportExcel(txns) {
@@ -2493,12 +2515,14 @@ function permMatrixHtml(existingPerms) {
         ${subUnits.filter(s => s.unitId === u.id).map(s => {
           const p = perms[s.id] || {};
           return `
-          <div class="flex items-center justify-between text-sm rounded-lg px-3 py-1.5 gap-2" style="background:#F7F5F0">
+          <div class="flex flex-wrap items-center justify-between text-sm rounded-lg px-3 py-1.5 gap-2" style="background:#F7F5F0">
             <span class="shrink-0">${esc(s.name)}</span>
-            <div class="flex items-center gap-3 text-xs">
+            <div class="flex flex-wrap items-center gap-3 text-xs">
               <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="view" ${p.view ? "checked" : ""} />${t().viewOnly}</label>
               <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="add" ${p.add ? "checked" : ""} />${t().dataAdd}</label>
               <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="edit" ${p.edit ? "checked" : ""} />${t().dataEdit}</label>
+              <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="reportView" ${p.reportView ? "checked" : ""} />${t().canViewReports}</label>
+              <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="reportDownload" ${p.reportDownload ? "checked" : ""} />${t().canDownloadReports}</label>
             </div>
           </div>`;
         }).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`}
@@ -2510,10 +2534,10 @@ function readPermMatrix(wrap) {
   wrap.querySelectorAll("[data-permsub]").forEach(cb => {
     const subId = cb.getAttribute("data-permsub");
     const flag = cb.getAttribute("data-permflag");
-    if (!out[subId]) out[subId] = { view: false, add: false, edit: false };
+    if (!out[subId]) out[subId] = { view: false, add: false, edit: false, reportView: false, reportDownload: false };
     out[subId][flag] = cb.checked;
   });
-  Object.keys(out).forEach(k => { if (!out[k].view && !out[k].add && !out[k].edit) delete out[k]; });
+  Object.keys(out).forEach(k => { if (!out[k].view && !out[k].add && !out[k].edit && !out[k].reportView && !out[k].reportDownload) delete out[k]; });
   return out;
 }
 
@@ -2548,8 +2572,6 @@ function openAddUserModal() {
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().password}</span><input id="uPassword" type="password" class="inp" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" /><span>${t().isAdminUser}</span></label>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanViewReports" /><span>${t().canViewReports}</span></label>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanDownloadReports" /><span>${t().canDownloadReports}</span></label>
       <div id="uPermsWrap">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml({})}</div>
@@ -2579,7 +2601,6 @@ function openAddUserModal() {
         await deleteApp(secApp);
         await setDoc(doc(db, "users", newUid), {
           name, username, email: realEmail || "", role: isAdminUser ? "admin" : "user", active: true, permissions,
-          canViewReports: wrap.querySelector("#uCanViewReports").checked, canDownloadReports: wrap.querySelector("#uCanDownloadReports").checked,
           createdAt: serverTimestamp(),
         });
         await setDoc(doc(db, "usernameIndex", username), { email: authEmail });
@@ -2597,8 +2618,6 @@ function openEditUserModal(user) {
       <p class="text-xs" style="color:#8a8578">@${esc(user.username || "")}</p>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().emailOptionalLabel}</span><input id="uEmail" type="email" class="inp" value="${esc(user.email || "")}" /></label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uIsAdmin" ${isAdminUser0 ? "checked" : ""} /><span>${t().isAdminUser}</span></label>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanViewReports" ${user.canViewReports ? "checked" : ""} /><span>${t().canViewReports}</span></label>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="uCanDownloadReports" ${user.canDownloadReports ? "checked" : ""} /><span>${t().canDownloadReports}</span></label>
       <div id="uPermsWrap" style="${isAdminUser0 ? "display:none" : ""}">
         <div class="text-sm font-medium mb-2" style="color:#6B6659">${t().permissions}</div>
         <div id="uPerms">${permMatrixHtml(user.permissions)}</div>
@@ -2623,7 +2642,6 @@ function openEditUserModal(user) {
       if (!name) return;
       await updateDoc(doc(db, "users", user.id), {
         name, email, role: isAdminUser ? "admin" : "user", permissions,
-        canViewReports: wrap.querySelector("#uCanViewReports").checked, canDownloadReports: wrap.querySelector("#uCanDownloadReports").checked,
       });
       wrap.remove();
     });

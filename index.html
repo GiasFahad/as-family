@@ -146,6 +146,8 @@ const STR = {
     incomeType: "Income", expenseType: "Expense", reportDate: "Date", reportSource: "Source", reportSubUnit: "Sub Unit",
     canViewReports: "Can View Reports", canDownloadReports: "Can Download Reports",
     dateRange: "Date Range", rangeFrom: "From", rangeTo: "To", allProperties: "All Shop/House IDs", selectPropertyId: "Select ID",
+    unitExpenseCategories: "Unit Expenses (Fixed)", addUnitExpenseCategory: "Add Expense Type", unitOverhead: "Unit Overhead",
+    unitExpenseEntries: "Unit Expense Entries", addUnitExpenseEntry: "Add Entry",
     today: "Today's Events", tomorrow: "Tomorrow's Events", pendingRentsLabel: "Pending Rent",
   },
   bn: {
@@ -219,6 +221,8 @@ const STR = {
     incomeType: "আয়", expenseType: "খরচ", reportDate: "তারিখ", reportSource: "উৎস", reportSubUnit: "সাব ইউনিট",
     canViewReports: "রিপোর্ট দেখতে পারবে", canDownloadReports: "রিপোর্ট ডাউনলোড করতে পারবে",
     dateRange: "তারিখের রেঞ্জ", rangeFrom: "থেকে", rangeTo: "পর্যন্ত", allProperties: "সব দোকান/বাসা আইডি", selectPropertyId: "আইডি বাছাই করো",
+    unitExpenseCategories: "ইউনিট খরচ (নির্দিষ্ট)", addUnitExpenseCategory: "খরচের ধরন যোগ করো", unitOverhead: "ইউনিট ওভারহেড",
+    unitExpenseEntries: "ইউনিট খরচের এন্ট্রি", addUnitExpenseEntry: "এন্ট্রি যোগ করো",
     today: "আজকের ইভেন্ট", tomorrow: "আগামীকালের ইভেন্ট", pendingRentsLabel: "বাকি ভাড়া",
   },
 };
@@ -335,6 +339,7 @@ let units = [], subUnits = [];
 let globalSettings = { hijriOffsetDays: 0 };
 let allUsers = [];
 let expenseCategories = [], eventTypes = [], eventPlaces = [], propertyIds = [];
+let unitExpenseCategories = [], unitExpenses = [];
 let tenants = [], rentPayments = [], expenses = [];
 let events = [], eventPayments = [], eventExpenses = [], eventOtherServices = [];
 let approvalRequests = [];
@@ -851,6 +856,10 @@ function paintDashboardCard() {
   }
 }
 
+function txnSubUnitLabel(x) {
+  if (x.unitLevel) { const u = units.find(y => y.id === x.unitIdRef); return `${u?.name || "?"} / ${t().unitOverhead}`; }
+  return unitSubLabel(x.subUnitId);
+}
 function unitSubLabel(subUnitId) {
   const su = subUnits.find(s => s.id === subUnitId);
   const u = units.find(x => x.id === su?.unitId);
@@ -880,7 +889,7 @@ function defaultPeriodValue(type) {
   return null;
 }
 
-function computeAllTxns(subUnitIds) {
+function computeAllTxns(subUnitIds, unitId, includeUnitLevel) {
   const txns = [];
   rentPayments.forEach(p => {
     if (!subUnitIds.includes(p.subUnitId)) return;
@@ -902,10 +911,15 @@ function computeAllTxns(subUnitIds) {
       txns.push({ id: x.id, coll: "eventExpenses", date: x.date, type: "expense", source: expenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: e.subUnitId, propertyId: null, note: `${e.customerName} (${e.memoNo})`, amount: x.amount });
     });
   });
+  if (includeUnitLevel && unitId) {
+    unitExpenses.filter(x => x.unitId === unitId).forEach(x => {
+      txns.push({ id: x.id, coll: "unitExpenses", date: x.date, type: "expense", source: unitExpenseCategories.find(c => c.id === x.categoryId)?.name || "—", subUnitId: null, unitLevel: true, unitIdRef: unitId, propertyId: null, note: x.details || "", amount: x.amount });
+    });
+  }
   return txns;
 }
-function computeReportTxns(subUnitIds) {
-  return computeAllTxns(subUnitIds).filter(x => reportInPeriod(x.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
+function computeReportTxns(subUnitIds, unitId, includeUnitLevel) {
+  return computeAllTxns(subUnitIds, unitId, includeUnitLevel).filter(x => reportInPeriod(x.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
 function renderReports(el) {
@@ -984,8 +998,8 @@ function renderReports(el) {
   paintReportBody();
 }
 
-function computeChartBuckets(subUnitIds) {
-  const all = computeAllTxns(subUnitIds).filter(x => reportProperty === "all" || x.propertyId === reportProperty);
+function computeChartBuckets(subUnitIds, unitId, includeUnitLevel) {
+  const all = computeAllTxns(subUnitIds, unitId, includeUnitLevel).filter(x => reportProperty === "all" || x.propertyId === reportProperty);
   let labels = [], keys = [];
   if (reportPeriodType === "daily") {
     const [y, m] = reportPeriodValue.split("-").map(Number);
@@ -1019,10 +1033,10 @@ function computeChartBuckets(subUnitIds) {
   return { labels, income: keys.map(k => incomeMap[k]), expense: keys.map(k => expenseMap[k]) };
 }
 
-function paintReportChart(subUnitIds) {
+function paintReportChart(subUnitIds, unitId, includeUnitLevel) {
   const canvas = document.getElementById("reportChart");
   if (!canvas || typeof Chart === "undefined") return;
-  const { labels, income, expense } = computeChartBuckets(subUnitIds);
+  const { labels, income, expense } = computeChartBuckets(subUnitIds, unitId, includeUnitLevel);
   if (reportChartInstance) { reportChartInstance.destroy(); reportChartInstance = null; }
   reportChartInstance = new Chart(canvas.getContext("2d"), {
     type: "bar",
@@ -1042,13 +1056,14 @@ function paintReportBody() {
   if (!body) return;
   const mySubs = accessibleReportSubUnitsOf(reportUnit);
   const subUnitIds = reportSub === "all" ? mySubs.map(s => s.id) : [reportSub];
-  let txns = computeReportTxns(subUnitIds);
+  const includeUnitLevel = reportSub === "all" && isAdmin();
+  let txns = computeReportTxns(subUnitIds, reportUnit, includeUnitLevel);
   if (reportProperty !== "all") txns = txns.filter(x => x.propertyId === reportProperty);
   const totalIncome = txns.filter(x => x.type === "income").reduce((s, x) => s + x.amount, 0);
   const totalExpense = txns.filter(x => x.type === "expense").reduce((s, x) => s + x.amount, 0);
   const canDownload = isAdmin() || subUnitIds.every(id => canReportDownload(id));
 
-  paintReportChart(subUnitIds);
+  paintReportChart(subUnitIds, reportUnit, includeUnitLevel);
 
   body.innerHTML = `
     <div class="grid grid-cols-3 gap-3 mb-5">
@@ -1074,7 +1089,7 @@ function paintReportBody() {
         <div class="card p-3 flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-medium truncate2">${esc(x.source)}</div>
-            <div class="text-xs truncate2" style="color:#8a8578">${esc(unitSubLabel(x.subUnitId))} ${x.note ? "· " + esc(x.note) : ""} · ${esc(x.date)}</div>
+            <div class="text-xs truncate2" style="color:#8a8578">${esc(txnSubUnitLabel(x))} ${x.note ? "· " + esc(x.note) : ""} · ${esc(x.date)}</div>
           </div>
           <div class="flex items-center gap-2" style="flex-shrink:0">
             <span class="${x.type === "income" ? "txt-income" : "txt-expense"} font-medium">${x.type === "income" ? "" : "-"}৳${x.amount.toLocaleString()}</span>
@@ -1098,7 +1113,7 @@ function exportReportExcel(txns) {
   try {
     const rows = txns.map(x => ({
       [t().reportDate]: x.date,
-      [t().reportSubUnit]: unitSubLabel(x.subUnitId),
+      [t().reportSubUnit]: txnSubUnitLabel(x),
       [t().reportSource]: x.source,
       [t().details]: x.note,
       [t().status]: x.type === "income" ? t().incomeType : t().expenseType,
@@ -1144,7 +1159,7 @@ function exportReportPdf(txns, totalIncome, totalExpense) {
     txns.forEach(x => {
       if (y > pageHeight - 15) { doc2.addPage(); y = 15; header(); }
       const row = [
-        x.date, truncate(unitSubLabel(x.subUnitId), 16), truncate(x.source, 20), truncate(x.note, 22),
+        x.date, truncate(txnSubUnitLabel(x), 16), truncate(x.source, 20), truncate(x.note, 22),
         x.type === "income" ? "Income" : "Expense", `${x.type === "income" ? "" : "-"}Tk ${x.amount}`,
       ];
       row.forEach((val, i) => doc2.text(String(val), colX[i], y));
@@ -2042,6 +2057,16 @@ function renderAdminPanel(el) {
     <div id="propGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().unitExpenseCategories}</h2></div>
+    </div>
+    <div id="unitExpCatGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2" style="color:#1B4332">${icons.report}<h2 class="text-lg font-semibold">${t().unitExpenseEntries}</h2></div>
+    </div>
+    <div id="unitExpEntryGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
+
+    <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().expenseCategories}</h2></div>
     </div>
     <div id="catGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
@@ -2068,6 +2093,8 @@ function renderAdminPanel(el) {
   document.getElementById("hijriPlus").addEventListener("click", () => adjustHijriOffset(1));
   paintAdminGrid();
   paintPropertyGrid();
+  paintUnitExpCatGrid();
+  paintUnitExpEntryGrid();
   paintCategoryGrid();
   paintEventTypeGrid();
   paintEventPlaceGrid();
@@ -2231,6 +2258,115 @@ function openPropertyIdModal(subUnitId, existing) {
         withPasswordConfirm(async () => { await updateDoc(doc(db, "propertyIds", existing.id), { label }); });
       } else {
         addDoc(collection(db, "propertyIds"), { subUnitId, label, createdAt: serverTimestamp() });
+      }
+    });
+  });
+}
+
+function paintUnitExpCatGrid() {
+  const grid = document.getElementById("unitExpCatGrid");
+  if (!grid) return;
+  grid.innerHTML = units.map(u => `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(u.name)}</h3>
+        <button data-addcat="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addUnitExpenseCategory}</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${unitExpenseCategories.filter(c => c.unitId === u.id).map(c => `
+          <span class="badge badge-brown" style="display:inline-flex;align-items:center;gap:6px">
+            ${esc(c.name)}
+            <button data-editcat="${c.id}" style="color:#8B5A2B">${icons.pencil}</button>
+            <button data-delcat="${c.id}" style="color:#9B2C2C">${icons.trash}</button>
+          </span>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
+      </div>
+    </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-addcat]").forEach(b => b.addEventListener("click", () => openUnitExpCatModal(b.getAttribute("data-addcat"))));
+  grid.querySelectorAll("[data-editcat]").forEach(b => b.addEventListener("click", () => {
+    const c = unitExpenseCategories.find(x => x.id === b.getAttribute("data-editcat"));
+    openUnitExpCatModal(c.unitId, c);
+  }));
+  grid.querySelectorAll("[data-delcat]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "unitExpenseCategories", b.getAttribute("data-delcat"))); });
+  }));
+}
+function openUnitExpCatModal(unitId, existing) {
+  openModal(existing ? t().edit : t().addUnitExpenseCategory, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().newCategoryName}</span><input id="ucName" class="inp" value="${esc(existing?.name || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const name = wrap.querySelector("#ucName").value.trim();
+      if (!name) return;
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "unitExpenseCategories", existing.id), { name }); });
+      } else {
+        addDoc(collection(db, "unitExpenseCategories"), { unitId, name, createdAt: serverTimestamp() });
+      }
+    });
+  });
+}
+
+function paintUnitExpEntryGrid() {
+  const grid = document.getElementById("unitExpEntryGrid");
+  if (!grid) return;
+  grid.innerHTML = units.map(u => {
+    const cats = unitExpenseCategories.filter(c => c.unitId === u.id);
+    const entries = unitExpenses.filter(x => x.unitId === u.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+    return `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(u.name)}</h3>
+        <button data-addentry="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addUnitExpenseEntry}</button>
+      </div>
+      <ul class="flex flex-col gap-1.5">
+        ${entries.map(x => `
+          <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+            <span>${esc(cats.find(c => c.id === x.categoryId)?.name || "—")} ${x.details ? "· " + esc(x.details) : ""} · ${esc(x.date)}</span>
+            <span class="flex items-center gap-2">
+              <span class="txt-expense font-medium">৳${Number(x.amount).toLocaleString()}</span>
+              <button data-editentry="${x.id}" style="color:#8a8578">${icons.pencil}</button>
+              <button data-delentry="${x.id}" style="color:#9B2C2C">${icons.trash}</button>
+            </span>
+          </li>`).join("") || `<li class="text-xs" style="color:#8a8578">—</li>`}
+      </ul>
+    </div>`;
+  }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
+  grid.querySelectorAll("[data-addentry]").forEach(b => b.addEventListener("click", () => openUnitExpEntryModal(b.getAttribute("data-addentry"))));
+  grid.querySelectorAll("[data-editentry]").forEach(b => b.addEventListener("click", () => {
+    const x = unitExpenses.find(y => y.id === b.getAttribute("data-editentry"));
+    openUnitExpEntryModal(x.unitId, x);
+  }));
+  grid.querySelectorAll("[data-delentry]").forEach(b => b.addEventListener("click", () => {
+    withPasswordConfirm(async () => { await deleteDoc(doc(db, "unitExpenses", b.getAttribute("data-delentry"))); });
+  }));
+}
+function openUnitExpEntryModal(unitId, existing) {
+  const cats = unitExpenseCategories.filter(c => c.unitId === unitId);
+  openModal(existing ? t().edit : t().addUnitExpenseEntry, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().expenseCategory}</span>
+        <select id="ueCat" class="inp">${cats.map(c => `<option value="${c.id}" ${existing?.categoryId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("") || `<option value="">—</option>`}</select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().amountLabel}</span><input id="ueAmount" type="number" class="inp" value="${existing?.amount || ""}" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="ueDate" type="date" class="inp" value="${existing?.date || todayISO()}" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().details}</span><input id="ueDetails" class="inp" value="${esc(existing?.details || "")}" /></label>
+      <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const amount = Number(wrap.querySelector("#ueAmount").value) || 0;
+      if (!amount) return;
+      const data = { categoryId: wrap.querySelector("#ueCat").value, amount, date: wrap.querySelector("#ueDate").value || todayISO(), details: wrap.querySelector("#ueDetails").value.trim() };
+      wrap.remove();
+      if (existing) {
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "unitExpenses", existing.id), data); });
+      } else {
+        addDoc(collection(db, "unitExpenses"), { unitId, ...data, createdAt: serverTimestamp() });
       }
     });
   });
@@ -2655,7 +2791,7 @@ function repaintCurrentTab() {
   if (tab === "dashboard") paintDashboardCard();
   if (tab === "dataEntry") paintDataEntryBody();
   if (tab === "adminPanel" && isAdmin()) {
-    paintAdminGrid(); paintPropertyGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
+    paintAdminGrid(); paintPropertyGrid(); paintUnitExpCatGrid(); paintUnitExpEntryGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
   }
   if (tab === "approvalPending") paintApprovalList();
   if (tab === "reports") paintReportBody();
@@ -2684,6 +2820,8 @@ function startAllListeners() {
   unsubs.push(bind("eventTypes", eventTypes));
   unsubs.push(bind("eventPlaces", eventPlaces));
   unsubs.push(bind("propertyIds", propertyIds));
+  unsubs.push(bind("unitExpenseCategories", unitExpenseCategories));
+  unsubs.push(bind("unitExpenses", unitExpenses));
   unsubs.push(bind("tenants", tenants));
   unsubs.push(bind("rentPayments", rentPayments));
   unsubs.push(bind("expenses", expenses));
@@ -2705,6 +2843,7 @@ function stopAllListeners() {
   unsubs = [];
   units.length = 0; subUnits.length = 0; allUsers.length = 0;
   expenseCategories.length = 0; eventTypes.length = 0; eventPlaces.length = 0; propertyIds.length = 0;
+  unitExpenseCategories.length = 0; unitExpenses.length = 0;
   tenants.length = 0; rentPayments.length = 0; expenses.length = 0;
   events.length = 0; eventPayments.length = 0; eventExpenses.length = 0; eventOtherServices.length = 0;
   approvalRequests.length = 0;

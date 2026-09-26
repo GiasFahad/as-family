@@ -139,7 +139,10 @@ const STR = {
     tenantHistory: "Tenant History", endedOn: "ended", totalBooking: "Total Booking",
     usernameLabel: "Username", loginIdLabel: "Username or Email", emailOptionalLabel: "Email (optional, can add later)",
     selectMonths: "Select Month(s)", rentSystemLabel: "Rent System", rentSystemRunning: "Running Month", rentSystemOld: "Old Month",
-    rentStartLabel: "Rent Accounting Starts From", noteLabel: "Note",
+    rentStartLabel: "Rent Accounting Starts From", noteLabel: "Note", dateLabel: "Date",
+    rentHistory: "Rent History", addRentChange: "Add Rent Change", runningLabel: "Running",
+    newRentAmount: "New Rent Amount (৳)", startingFrom: "Starting From", endMonthLabel: "End Month (previous period)",
+    editRentSetup: "Edit Rent Setup", currentRentLabel: "Current Rent",
     reportPeriod: "Period", daily: "Daily", monthly2: "Monthly", yearly: "Yearly",
     allSubUnits: "All Sub Units", totalIncome: "Total Income", totalExpenseR: "Total Expense", net: "Net",
     downloadExcel: "Download Excel", downloadPdf: "Download PDF", noReportData: "No transactions in this period.",
@@ -148,6 +151,9 @@ const STR = {
     dateRange: "Date Range", rangeFrom: "From", rangeTo: "To", allProperties: "All Shop/House IDs", selectPropertyId: "Select ID",
     unitExpenseCategories: "Unit Expenses (Fixed)", addUnitExpenseCategory: "Add Expense Type", unitOverhead: "Unit Overhead",
     unitExpenseEntries: "Unit Expense Entries", addUnitExpenseEntry: "Add Entry",
+    frequencyLabel: "Frequency", freqMonthly: "Monthly", freqDaily: "Daily", freqRandom: "Random / One-time",
+    fixedAmountLabel: "Fixed Amount (৳, optional)", unitExpenseDue: "Fixed Expense Due",
+    unitLevelPermLabel: "Unit Expense (whole Unit)",
     today: "Today's Events", tomorrow: "Tomorrow's Events", pendingRentsLabel: "Pending Rent",
   },
   bn: {
@@ -214,7 +220,10 @@ const STR = {
     tenantHistory: "ভাড়াটিয়ার ইতিহাস", endedOn: "শেষ", totalBooking: "মোট বুকিং",
     usernameLabel: "ইউজারনেম", loginIdLabel: "ইউজারনেম বা ইমেইল", emailOptionalLabel: "ইমেইল (ঐচ্ছিক, পরে যোগ করা যাবে)",
     selectMonths: "মাস বাছাই করো", rentSystemLabel: "ভাড়ার সিস্টেম", rentSystemRunning: "চলতি মাস", rentSystemOld: "গত মাস",
-    rentStartLabel: "ভাড়ার হিসাব যে মাস থেকে শুরু", noteLabel: "নোট",
+    rentStartLabel: "ভাড়ার হিসাব যে মাস থেকে শুরু", noteLabel: "নোট", dateLabel: "তারিখ",
+    rentHistory: "ভাড়ার ইতিহাস", addRentChange: "ভাড়া পরিবর্তন যোগ করুন", runningLabel: "চলমান",
+    newRentAmount: "নতুন ভাড়া (৳)", startingFrom: "শুরু মাস", endMonthLabel: "শেষ মাস (আগের মেয়াদের)",
+    editRentSetup: "ভাড়া সেটআপ এডিট", currentRentLabel: "বর্তমান ভাড়া",
     reportPeriod: "মেয়াদ", daily: "দৈনিক", monthly2: "মাসিক", yearly: "বাৎসরিক",
     allSubUnits: "সব সাব ইউনিট", totalIncome: "মোট আয়", totalExpenseR: "মোট খরচ", net: "নিট",
     downloadExcel: "এক্সেল ডাউনলোড", downloadPdf: "পিডিএফ ডাউনলোড", noReportData: "এই সময়ে কোনো লেনদেন নেই।",
@@ -223,6 +232,9 @@ const STR = {
     dateRange: "তারিখের রেঞ্জ", rangeFrom: "থেকে", rangeTo: "পর্যন্ত", allProperties: "সব দোকান/বাসা আইডি", selectPropertyId: "আইডি বাছাই করো",
     unitExpenseCategories: "ইউনিট খরচ (নির্দিষ্ট)", addUnitExpenseCategory: "খরচের ধরন যোগ করো", unitOverhead: "ইউনিট ওভারহেড",
     unitExpenseEntries: "ইউনিট খরচের এন্ট্রি", addUnitExpenseEntry: "এন্ট্রি যোগ করো",
+    frequencyLabel: "ফ্রিকোয়েন্সি", freqMonthly: "মাসিক", freqDaily: "দৈনিক", freqRandom: "অনিয়মিত / একবার",
+    fixedAmountLabel: "নির্দিষ্ট পরিমাণ (৳, ঐচ্ছিক)", unitExpenseDue: "নির্দিষ্ট খরচ বাকি",
+    unitLevelPermLabel: "ইউনিট খরচ (পুরো Unit)",
     today: "আজকের ইভেন্ট", tomorrow: "আগামীকালের ইভেন্ট", pendingRentsLabel: "বাকি ভাড়া",
   },
 };
@@ -340,7 +352,7 @@ let globalSettings = { hijriOffsetDays: 0 };
 let allUsers = [];
 let expenseCategories = [], eventTypes = [], eventPlaces = [], propertyIds = [];
 let unitExpenseCategories = [], unitExpenses = [];
-let tenants = [], rentPayments = [], expenses = [];
+let tenants = [], rentPayments = [], expenses = [], rentSetups = [];
 let events = [], eventPayments = [], eventExpenses = [], eventOtherServices = [];
 let approvalRequests = [];
 
@@ -449,7 +461,7 @@ function canReportDownload(subUnitId) { return permFor(subUnitId).reportDownload
 function accessibleUnits() {
   if (isAdmin()) return units;
   const okSubUnitIds = new Set(subUnits.filter(s => canView(s.id)).map(s => s.id));
-  return units.filter(u => subUnits.some(s => s.unitId === u.id && okSubUnitIds.has(s.id)));
+  return units.filter(u => subUnits.some(s => s.unitId === u.id && okSubUnitIds.has(s.id)) || canView(u.id));
 }
 function accessibleSubUnitsOf(unitId) {
   const list = subUnits.filter(s => s.unitId === unitId);
@@ -469,7 +481,7 @@ function accessibleReportSubUnitsOf(unitId) {
 // Approval workflow
 // ---------------------------------------------------------------------------
 function findLocal(coll, id) {
-  const map = { tenants, events, rentPayments, expenses, eventPayments, eventExpenses, eventOtherServices };
+  const map = { tenants, events, rentPayments, expenses, eventPayments, eventExpenses, eventOtherServices, unitExpenses };
   return (map[coll] || []).find(x => x.id === id);
 }
 function snapshotBefore(coll, id, changes) {
@@ -735,17 +747,20 @@ function computeDashboardStats() {
   let shopDue = 0, houseDue = 0;
   tenants.forEach(tn => {
     if (tn.active === false) return;
+    if (!propertyIds.some(p => p.id === tn.propertyId)) return;
     if (dueMonthsFor(tn).length === 0) return;
     const name = (subUnitById[tn.subUnitId]?.name || "").toLowerCase();
     if (name.includes("shop")) shopDue++;
     else if (name.includes("house")) houseDue++;
   });
-  return { upcomingDate: upcoming ? upcoming.eventDate : null, pendingCount: pending.length, shopDue, houseDue };
+  const unitExpDueCount = dueUnitExpenseCategories().length;
+  return { upcomingDate: upcoming ? upcoming.eventDate : null, pendingCount: pending.length, shopDue, houseDue, unitExpDueCount };
 }
 function dueTenantsFor(category) {
   const subUnitById = Object.fromEntries(subUnits.map(s => [s.id, s]));
   return tenants.filter(tn => {
     if (tn.active === false) return false;
+    if (!propertyIds.some(p => p.id === tn.propertyId)) return false;
     if (dueMonthsFor(tn).length === 0) return false;
     const name = (subUnitById[tn.subUnitId]?.name || "").toLowerCase();
     return name.includes(category);
@@ -788,6 +803,7 @@ function eventCardHtml(e) {
 }
 function propertyDueCardHtml(tn) {
   const prop = propertyIds.find(p => p.id === tn.propertyId);
+  if (!prop) return "";
   const due = dueMonthsFor(tn);
   return `
     <div class="card p-3" data-openprop2="${tn.propertyId}" style="cursor:pointer">
@@ -817,6 +833,7 @@ function paintDashboardCard() {
         ${tileHtml("events", t().pendingEvents, s.pendingCount)}
         ${tileHtml("shop", t().shopUncollected, s.shopDue)}
         ${tileHtml("house", t().houseUncollected, s.houseDue)}
+        ${isAdmin() ? tileHtml("unitExpense", t().unitExpenseDue, s.unitExpDueCount) : ""}
       </div>
     </div>`;
   box.querySelectorAll("[data-tile]").forEach(el => el.addEventListener("click", () => {
@@ -844,6 +861,24 @@ function paintDashboardCard() {
         ${restEvents.map(eventCardHtml).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
       </div>`;
     listBox.querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
+  } else if (dashView === "unitExpense") {
+    const dueCats = dueUnitExpenseCategories();
+    listBox.innerHTML = `
+      <h3 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().unitExpenseDue}</h3>
+      <div class="flex flex-col gap-2">
+        ${dueCats.map(c => `
+          <div class="card p-3" data-openunitexp="${c.unitId}" style="cursor:pointer">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-sm font-medium truncate2">${esc(c.name)}</div>
+              <span class="badge badge-gold" style="flex-shrink:0">৳${unitExpenseCurrentDue(c).toLocaleString()}</span>
+            </div>
+            <div class="text-xs truncate2" style="color:#8a8578">${esc(units.find(u => u.id === c.unitId)?.name || "")}</div>
+          </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+      </div>`;
+    listBox.querySelectorAll("[data-openunitexp]").forEach(c => c.addEventListener("click", () => {
+      deUnit = c.getAttribute("data-openunitexp"); deSub = "__unitExpense__";
+      tab = "dataEntry"; renderApp();
+    }));
   } else {
     const category = dashView === "shop" ? "shop" : "house";
     const dueList = dueTenantsFor(category);
@@ -1179,7 +1214,9 @@ function renderDataEntry(el) {
   if (!myUnits.length) { el.innerHTML = `<p class="text-sm" style="color:#8a8578">${t().noAccessMsg}</p>`; return; }
   if (!deUnit || !myUnits.some(u => u.id === deUnit)) deUnit = myUnits[0].id;
   const mySubs = accessibleSubUnitsOf(deUnit);
-  if (!deSub || !mySubs.some(s => s.id === deSub)) deSub = mySubs[0]?.id || null;
+  const admin = isAdmin();
+  const showUnitExp = isAdmin() || canView(deUnit);
+  if (!deSub || (deSub !== "__unitExpense__" && !mySubs.some(s => s.id === deSub))) deSub = mySubs[0]?.id || (showUnitExp ? "__unitExpense__" : null);
 
   el.innerHTML = `
     <div class="mb-3">
@@ -1191,7 +1228,8 @@ function renderDataEntry(el) {
     <div class="mb-5">
       <div class="text-xs font-medium mb-1.5" style="color:#8a8578">${t().selectSubUnit}</div>
       <div class="flex flex-wrap gap-1.5">
-        ${mySubs.map(s => `<button data-desub="${s.id}" class="chip ${s.id === deSub ? "active" : ""}">${esc(s.name)}</button>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
+        ${mySubs.map(s => `<button data-desub="${s.id}" class="chip ${s.id === deSub ? "active" : ""}">${esc(s.name)}</button>`).join("") || (showUnitExp ? "" : `<span class="text-xs" style="color:#8a8578">—</span>`)}
+        ${showUnitExp ? `<button data-desub="__unitExpense__" class="chip ${deSub === "__unitExpense__" ? "active" : ""}">${t().unitExpenseCategories}</button>` : ""}
       </div>
     </div>
     <div id="deBody"></div>`;
@@ -1210,6 +1248,7 @@ function paintDataEntryBody() {
   const body = document.getElementById("deBody");
   if (!body) return;
   if (!deSub) { body.innerHTML = `<p class="text-xs" style="color:#8a8578">${t().selectSubUnit}</p>`; return; }
+  if (deSub === "__unitExpense__") { paintUnitExpensePanel(body, deUnit); return; }
   const su = subUnits.find(s => s.id === deSub);
   if (su && su.billingType === "perEvent") paintEventsBody(body, su);
   else paintPropertiesBody(body, su);
@@ -1225,6 +1264,7 @@ function monthPaidAmount(tenantId, month, year) {
   return rentPayments.filter(p => p.tenantId === tenantId && p.month === month && p.year === year).reduce((s, p) => s + p.amount, 0);
 }
 function ymAfter(a, b) { return a.year > b.year || (a.year === b.year && a.month > b.month); }
+function ymLTE(a, b) { return !ymAfter(a, b); }
 function ymAddMonths(ym, n) {
   let m = ym.month + n, y = ym.year;
   while (m > 12) { m -= 12; y++; }
@@ -1237,6 +1277,8 @@ function effectiveDueYM(rentSystem, ref) {
   return rentSystem === "old" ? ymAddMonths(cur, -1) : cur;
 }
 function tenantStartYM(tenant) {
+  const setups = rentSetupsFor(tenant.id);
+  if (setups.length) return { month: setups[0].startMonth, year: setups[0].startYear };
   if (tenant.rentStart) {
     const [y, m] = tenant.rentStart.split("-").map(Number);
     if (y && m) return { month: m, year: y };
@@ -1255,20 +1297,101 @@ function monthsBetweenInclusive(start, end) {
   }
   return arr;
 }
+
+// Rent Setups: a tenant's monthly rent can change over time (rent increase).
+// Each setup covers a [startMonth,endMonth] range (endMonth null = still running).
+// Due/advance is always computed against the rate that applied to THAT month,
+// never against today's rate — fixes rent increases retroactively marking
+// already-paid old months as "due".
+function rentSetupsFor(tenantId) {
+  return rentSetups.filter(r => r.tenantId === tenantId).sort((a, b) => (a.startYear - b.startYear) || (a.startMonth - b.startMonth));
+}
+function rentAmountForMonth(tenantId, month, year) {
+  const ym = { month, year };
+  const setups = rentSetupsFor(tenantId);
+  for (const s of setups) {
+    const start = { month: s.startMonth, year: s.startYear };
+    const end = (s.endMonth && s.endYear) ? { month: s.endMonth, year: s.endYear } : null;
+    if (ymLTE(start, ym) && (!end || ymLTE(ym, end))) return s.amount;
+  }
+  const tn = tenants.find(t => t.id === tenantId);
+  return tn ? (tn.rentAmount || 0) : 0;
+}
+function currentRentSetup(tenantId) {
+  return rentSetupsFor(tenantId).find(s => !s.endMonth) || null;
+}
+function currentRentAmount(tenant) {
+  const running = currentRentSetup(tenant.id);
+  return running ? running.amount : (tenant.rentAmount || 0);
+}
+
 function dueMonthsFor(tenant) {
   const cutoff = effectiveDueYM(tenant.rentSystem || "running");
   const start = tenantStartYM(tenant);
   if (ymAfter(start, cutoff)) return [];
-  return monthsBetweenInclusive(start, cutoff).filter(ym => monthPaidAmount(tenant.id, ym.month, ym.year) < (tenant.rentAmount || 0));
+  return monthsBetweenInclusive(start, cutoff).filter(ym => monthPaidAmount(tenant.id, ym.month, ym.year) < rentAmountForMonth(tenant.id, ym.month, ym.year));
 }
 function dueAmountFor(tenant) {
-  return dueMonthsFor(tenant).reduce((s, ym) => s + Math.max(0, (tenant.rentAmount || 0) - monthPaidAmount(tenant.id, ym.month, ym.year)), 0);
+  return dueMonthsFor(tenant).reduce((s, ym) => s + Math.max(0, rentAmountForMonth(tenant.id, ym.month, ym.year) - monthPaidAmount(tenant.id, ym.month, ym.year)), 0);
 }
 function advanceAmountFor(tenant) {
   const cutoff = effectiveDueYM(tenant.rentSystem || "running");
   return rentPayments.filter(p => p.tenantId === tenant.id && ymAfter({ month: p.month, year: p.year }, cutoff)).reduce((s, p) => s + p.amount, 0);
 }
 function monthYmLabel(ym) { return `${GREG_MONTHS_FULL[ym.month - 1]}-${ym.year}`; }
+
+// ---------------------------------------------------------------------------
+// Adding a rent change (increase/decrease): closes the current running
+// setup at the month before the new one starts, then opens the new one.
+// ---------------------------------------------------------------------------
+async function addRentChange(tenant, newAmount, newStart, prevEndOverride) {
+  const existing = rentSetupsFor(tenant.id);
+  const prevMonth = prevEndOverride || ymAddMonths(newStart, -1);
+  if (existing.length === 0) {
+    // Legacy tenant with no setup history yet — backfill one covering their
+    // whole history so far at the OLD flat rent amount.
+    const oldStart = tenantStartYM(tenant);
+    if (ymLTE(oldStart, prevMonth)) {
+      await addDoc(collection(db, "rentSetups"), {
+        tenantId: tenant.id, propertyId: tenant.propertyId, subUnitId: tenant.subUnitId,
+        amount: tenant.rentAmount || 0, startMonth: oldStart.month, startYear: oldStart.year,
+        endMonth: prevMonth.month, endYear: prevMonth.year, createdAt: serverTimestamp(),
+      });
+    }
+  } else {
+    const running = existing.find(s => !s.endMonth);
+    if (running) {
+      await updateDoc(doc(db, "rentSetups", running.id), { endMonth: prevMonth.month, endYear: prevMonth.year });
+    }
+  }
+  await addDoc(collection(db, "rentSetups"), {
+    tenantId: tenant.id, propertyId: tenant.propertyId, subUnitId: tenant.subUnitId,
+    amount: newAmount, startMonth: newStart.month, startYear: newStart.year,
+    endMonth: null, endYear: null, createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, "tenants", tenant.id), { rentAmount: newAmount });
+}
+
+// ---------------------------------------------------------------------------
+// Unit Expense (fixed) due/advance — same due/advance logic as tenant rent,
+// but per Unit Expense Category, monthly-frequency + fixedAmount only.
+// ---------------------------------------------------------------------------
+function unitExpenseMonthPaid(categoryId, month, year) {
+  return unitExpenses.filter(x => x.categoryId === categoryId && x.month === month && x.year === year).reduce((s, x) => s + x.amount, 0);
+}
+function unitExpenseCurrentDue(cat) {
+  if (cat.frequency !== "monthly" || !cat.fixedAmount) return 0;
+  const now = new Date();
+  return Math.max(0, cat.fixedAmount - unitExpenseMonthPaid(cat.id, now.getMonth() + 1, now.getFullYear()));
+}
+function unitExpenseCurrentAdvance(cat) {
+  if (cat.frequency !== "monthly" || !cat.fixedAmount) return 0;
+  const now = new Date();
+  return Math.max(0, unitExpenseMonthPaid(cat.id, now.getMonth() + 1, now.getFullYear()) - cat.fixedAmount);
+}
+function dueUnitExpenseCategories() {
+  return unitExpenseCategories.filter(c => unitExpenseCurrentDue(c) > 0);
+}
 
 function paintPropertiesBody(body, su) {
   const list = propertyIds.filter(p => p.subUnitId === deSub);
@@ -1320,6 +1443,7 @@ function paintPropertyDetailBody(propertyId) {
   const due = tn ? dueMonthsFor(tn) : [];
   const dueAmt = tn ? dueAmountFor(tn) : 0;
   const advAmt = tn ? advanceAmountFor(tn) : 0;
+  const rentHist = tn ? rentSetupsFor(tn.id) : [];
   const txns = [
     ...myPays.map(p => ({ id: p.id, coll: "rentPayments", date: p.paidDate, label: `${t().collectRent} — ${esc(p.tenantName || "")}`, amount: p.amount, positive: true })),
     ...myExps.map(x => ({ id: x.id, coll: "expenses", date: x.date, label: (expenseCategories.find(c => c.id === x.categoryId)?.name || "—") + (x.details ? " · " + x.details : ""), amount: -x.amount, positive: false })),
@@ -1341,7 +1465,7 @@ function paintPropertyDetailBody(propertyId) {
       <div class="rounded-xl p-3 mb-3" style="background:#F7F5F0">
         <div class="text-sm font-medium">${esc(tn.name)} ${pendingApprovalFor(tn.id) ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
         <div class="text-xs" style="color:#8a8578">${esc(tn.phone || "")} ${tn.address ? "· " + esc(tn.address) : ""}</div>
-        <div class="text-xs mt-1"><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(tn.rentAmount || 0).toLocaleString()} <span style="color:#8a8578">(${tn.rentSystem === "old" ? t().rentSystemOld : t().rentSystemRunning})</span></div>
+        <div class="text-xs mt-1"><span style="color:#8a8578">${t().rentAmount}: </span>৳${Number(currentRentAmount(tn)).toLocaleString()} <span style="color:#8a8578">(${tn.rentSystem === "old" ? t().rentSystemOld : t().rentSystemRunning})</span></div>
         ${tn.note ? `<div class="text-xs mt-1"><span style="color:#8a8578">${t().noteLabel}: </span>${esc(tn.note)}</div>` : ""}
         <div class="flex flex-wrap gap-2 mt-2">
           ${due.length ? `<span class="badge badge-gold">${t().due}: ৳${dueAmt.toLocaleString()} — ${due.map(monthYmLabel).join(", ")}</span>` : `<span class="badge badge-blue">${t().paid}</span>`}
@@ -1353,7 +1477,20 @@ function paintPropertyDetailBody(propertyId) {
         ${add ? `<button id="propCollectBtn" class="btn btn-gold" style="padding:5px 10px;font-size:12px">${icons.plus}${t().collectRent}</button>` : ""}
         ${add ? `<button id="propExpBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addExpense}</button>` : ""}
         ${add ? `<button id="propChangeBtn" class="btn btn-outline" style="padding:5px 10px;font-size:12px">${t().changeTenant}</button>` : ""}
-      </div>` : `
+      </div>
+      <h4 class="text-sm font-semibold mb-2" style="color:#1B4332">${t().rentHistory}</h4>
+      <ul class="flex flex-col gap-1.5 mb-2">
+        ${rentHist.slice().reverse().map(s => `
+          <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
+            <span>${monthYmLabel({ month: s.startMonth, year: s.startYear })} – ${s.endMonth ? monthYmLabel({ month: s.endMonth, year: s.endYear }) : `<span class="txt-income" style="font-weight:600">${t().runningLabel}</span>`}</span>
+            <span class="flex items-center gap-2">
+              <span class="font-medium">৳${Number(s.amount).toLocaleString()}</span>
+              ${isAdmin() ? `<button data-editsetup="${s.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+            </span>
+          </li>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
+      </ul>
+      ${isAdmin() ? `<button id="propAddRentChangeBtn" class="btn btn-outline mb-4" style="padding:5px 10px;font-size:12px">${icons.plus}${t().addRentChange}</button>` : ""}
+    ` : `
       <p class="text-xs mb-3" style="color:#8a8578">${t().vacant}</p>
       ${add ? `<button id="propAddTenantBtn" class="btn btn-primary mb-4" style="padding:6px 10px;font-size:12px">${icons.plus}${t().addTenantHere}</button>` : ""}
     `}
@@ -1382,6 +1519,12 @@ function paintPropertyDetailBody(propertyId) {
   if (changeBtn) changeBtn.addEventListener("click", () => openChangeTenantModal(prop, tn));
   const addTenantBtn = box.querySelector("#propAddTenantBtn");
   if (addTenantBtn) addTenantBtn.addEventListener("click", () => openTenantModal(prop, null));
+  const addRentChangeBtn = box.querySelector("#propAddRentChangeBtn");
+  if (addRentChangeBtn) addRentChangeBtn.addEventListener("click", () => openRentChangeModal(tn));
+  box.querySelectorAll("[data-editsetup]").forEach(b => b.addEventListener("click", () => {
+    const s = rentSetups.find(x => x.id === b.getAttribute("data-editsetup"));
+    if (s) openEditRentSetupModal(s);
+  }));
   box.querySelectorAll("[data-edittxn]").forEach(b => b.addEventListener("click", () => {
     const [coll, id] = b.getAttribute("data-edittxn").split(":");
     openEditTxnModal(coll, id, prop.subUnitId);
@@ -1404,10 +1547,11 @@ function openTenantModal(prop, existing) {
         <span class="font-medium" style="color:#6B6659">${t().phone}</span>
         <input id="tnPhone" class="inp" value="${esc(existing?.phone || "")}" />
       </label>
+      ${!isEdit ? `
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().rentAmount}</span>
         <input id="tnRent" type="number" class="inp" value="${existing?.rentAmount || ""}" />
-      </label>
+      </label>` : ""}
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().rentSystemLabel}</span>
         <select id="tnRentSystem" class="inp">
@@ -1415,10 +1559,11 @@ function openTenantModal(prop, existing) {
           <option value="old" ${existing?.rentSystem === "old" ? "selected" : ""}>${t().rentSystemOld}</option>
         </select>
       </label>
+      ${!isEdit ? `
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().rentStartLabel}</span>
         <input id="tnRentStart" type="month" class="inp" value="${existing?.rentStart || todayISO().slice(0, 7)}" />
-      </label>
+      </label>` : `<p class="text-xs" style="color:#8a8578">${t().rentHistory}: ${t().addRentChange}</p>`}
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().noteLabel}</span>
         <input id="tnNote" class="inp" value="${esc(existing?.note || "")}" />
@@ -1436,16 +1581,21 @@ function openTenantModal(prop, existing) {
         name,
         address: wrap.querySelector("#tnAddress").value.trim(),
         phone: wrap.querySelector("#tnPhone").value.trim(),
-        rentAmount: Number(wrap.querySelector("#tnRent").value) || 0,
         rentSystem: wrap.querySelector("#tnRentSystem").value,
-        rentStart: wrap.querySelector("#tnRentStart").value || todayISO().slice(0, 7),
         note: wrap.querySelector("#tnNote").value.trim(),
       };
       if (isEdit) {
         const changed = diffChanged(existing, data);
         if (Object.keys(changed).length) await performEdit("tenants", existing.id, changed, prop.subUnitId);
       } else {
-        await addDoc(collection(db, "tenants"), { subUnitId: prop.subUnitId, propertyId: prop.id, ...data, active: true, createdAt: serverTimestamp() });
+        const rentAmount = Number(wrap.querySelector("#tnRent").value) || 0;
+        const rentStart = wrap.querySelector("#tnRentStart").value || todayISO().slice(0, 7);
+        const ref = await addDoc(collection(db, "tenants"), { subUnitId: prop.subUnitId, propertyId: prop.id, ...data, rentAmount, rentStart, active: true, createdAt: serverTimestamp() });
+        const [sy, sm] = rentStart.split("-").map(Number);
+        await addDoc(collection(db, "rentSetups"), {
+          tenantId: ref.id, propertyId: prop.id, subUnitId: prop.subUnitId,
+          amount: rentAmount, startMonth: sm, startYear: sy, endMonth: null, endYear: null, createdAt: serverTimestamp(),
+        });
       }
       wrap.remove();
     });
@@ -1485,15 +1635,115 @@ function openChangeTenantModal(prop, oldTenant) {
       const name = wrap.querySelector("#ntName").value.trim();
       if (!name) return;
       await performEdit("tenants", oldTenant.id, { active: false, endDate: todayISO() }, prop.subUnitId);
-      await addDoc(collection(db, "tenants"), {
+      const rentAmount = Number(wrap.querySelector("#ntRent").value) || 0;
+      const rentStart = wrap.querySelector("#ntRentStart").value || todayISO().slice(0, 7);
+      const ref = await addDoc(collection(db, "tenants"), {
         subUnitId: prop.subUnitId, propertyId: prop.id,
         name, address: wrap.querySelector("#ntAddress").value.trim(), phone: wrap.querySelector("#ntPhone").value.trim(),
-        rentAmount: Number(wrap.querySelector("#ntRent").value) || 0, rentSystem: wrap.querySelector("#ntRentSystem").value,
-        rentStart: wrap.querySelector("#ntRentStart").value || todayISO().slice(0, 7),
+        rentAmount, rentSystem: wrap.querySelector("#ntRentSystem").value,
+        rentStart,
         note: wrap.querySelector("#ntNote").value.trim(),
         active: true, createdAt: serverTimestamp(),
       });
+      const [sy, sm] = rentStart.split("-").map(Number);
+      await addDoc(collection(db, "rentSetups"), {
+        tenantId: ref.id, propertyId: prop.id, subUnitId: prop.subUnitId,
+        amount: rentAmount, startMonth: sm, startYear: sy, endMonth: null, endYear: null, createdAt: serverTimestamp(),
+      });
       wrap.remove();
+    });
+  });
+}
+
+function openRentChangeModal(tenant) {
+  const current = currentRentSetup(tenant.id);
+  const today = new Date();
+  const defaultStart = ymAddMonths({ month: today.getMonth() + 1, year: today.getFullYear() }, 1);
+  const defaultStartStr = `${defaultStart.year}-${String(defaultStart.month).padStart(2, "0")}`;
+  const defaultPrevEnd = ymAddMonths(defaultStart, -1);
+  const defaultPrevEndStr = `${defaultPrevEnd.year}-${String(defaultPrevEnd.month).padStart(2, "0")}`;
+
+  openModal(t().addRentChange, `
+    <div class="flex flex-col gap-4">
+      <p class="text-sm" style="color:#6B6659">${esc(tenant.name)} — ${t().currentRentLabel}: ৳${currentRentAmount(tenant).toLocaleString()}</p>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().newRentAmount}</span>
+        <input id="rcAmount" type="number" class="inp" value="${currentRentAmount(tenant)}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().startingFrom}</span>
+        <input id="rcStart" type="month" class="inp" value="${defaultStartStr}" />
+      </label>
+      ${current ? `
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().endMonthLabel}</span>
+        <input id="rcPrevEnd" type="month" class="inp" value="${defaultPrevEndStr}" />
+      </label>` : ""}
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const amount = Number(wrap.querySelector("#rcAmount").value) || 0;
+      const startVal = wrap.querySelector("#rcStart").value;
+      if (!amount || !startVal) return;
+      const [sy, sm] = startVal.split("-").map(Number);
+      const newStart = { month: sm, year: sy };
+      let prevEnd = null;
+      const prevEndInput = wrap.querySelector("#rcPrevEnd");
+      if (prevEndInput && prevEndInput.value) {
+        const [py, pm] = prevEndInput.value.split("-").map(Number);
+        prevEnd = { month: pm, year: py };
+      }
+      wrap.remove();
+      withPasswordConfirm(async () => { await addRentChange(tenant, amount, newStart, prevEnd); });
+    });
+  });
+}
+
+function openEditRentSetupModal(setup) {
+  const isRunning = !setup.endMonth;
+  openModal(t().editRentSetup, `
+    <div class="flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().rentAmount}</span>
+        <input id="esAmount" type="number" class="inp" value="${setup.amount}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().startingFrom}</span>
+        <input id="esStart" type="month" class="inp" value="${setup.startYear}-${String(setup.startMonth).padStart(2, "0")}" />
+      </label>
+      ${!isRunning ? `
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().endMonthLabel}</span>
+        <input id="esEnd" type="month" class="inp" value="${setup.endYear}-${String(setup.endMonth).padStart(2, "0")}" />
+      </label>` : `<p class="text-xs txt-income" style="font-weight:600">${t().runningLabel}</p>`}
+      <div class="flex justify-end gap-2">
+        <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
+        <button id="saveBtn" class="btn btn-primary">${t().save}</button>
+      </div>
+    </div>`, (wrap) => {
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#saveBtn").addEventListener("click", () => {
+      const amount = Number(wrap.querySelector("#esAmount").value) || 0;
+      const startVal = wrap.querySelector("#esStart").value;
+      if (!amount || !startVal) return;
+      const [sy, sm] = startVal.split("-").map(Number);
+      const data = { amount, startMonth: sm, startYear: sy };
+      if (!isRunning) {
+        const endInput = wrap.querySelector("#esEnd");
+        if (endInput && endInput.value) {
+          const [ey, em] = endInput.value.split("-").map(Number);
+          data.endMonth = em; data.endYear = ey;
+        }
+      }
+      wrap.remove();
+      withPasswordConfirm(async () => {
+        await updateDoc(doc(db, "rentSetups", setup.id), data);
+        if (isRunning) await updateDoc(doc(db, "tenants", setup.tenantId), { rentAmount: amount });
+      });
     });
   });
 }
@@ -1503,11 +1753,15 @@ function openCollectRentModal(prop, tenant) {
   const cutoff = effectiveDueYM(tenant.rentSystem || "running");
   const extraMonths = [1, 2, 3].map(n => ymAddMonths(cutoff, n));
   const allMonths = [...due, ...extraMonths];
-  const rent = tenant.rentAmount || 0;
+  const monthAmount = (ym) => rentAmountForMonth(tenant.id, ym.month, ym.year);
+  const sumOwed = (months) => months.reduce((s, ym) => s + Math.max(0, monthAmount(ym) - monthPaidAmount(tenant.id, ym.month, ym.year)), 0);
 
   function recomputeDefault(wrap) {
-    const checked = wrap.querySelectorAll("[data-monthcb]:checked").length;
-    wrap.querySelector("#rpAmount").value = rent * checked;
+    const checkedMonths = [...wrap.querySelectorAll("[data-monthcb]:checked")].map(cb => {
+      const [m, y] = cb.getAttribute("data-monthcb").split("-").map(Number);
+      return { month: m, year: y };
+    });
+    wrap.querySelector("#rpAmount").value = sumOwed(checkedMonths) || checkedMonths.reduce((s, ym) => s + monthAmount(ym), 0);
   }
 
   openModal(`${t().collectRent} — ${tenant.name}`, `
@@ -1525,10 +1779,10 @@ function openCollectRentModal(prop, tenant) {
       </div>
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().amountLabel}</span>
-        <input id="rpAmount" type="number" class="inp" value="${rent * due.length}" />
+        <input id="rpAmount" type="number" class="inp" value="${sumOwed(due)}" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().bookingDate}</span>
+        <span class="font-medium" style="color:#6B6659">${t().dateLabel}</span>
         <input id="rpDate" type="date" class="inp" value="${todayISO()}" />
       </label>
       <div class="flex justify-end gap-2">
@@ -1551,8 +1805,8 @@ function openCollectRentModal(prop, tenant) {
         const ym = selected[i];
         const isLast = i === selected.length - 1;
         const already = monthPaidAmount(tenant.id, ym.month, ym.year);
-        const owedThis = Math.max(0, rent - already);
-        const share = isLast ? remaining : Math.min(remaining, owedThis || rent);
+        const owedThis = Math.max(0, monthAmount(ym) - already);
+        const share = isLast ? remaining : Math.min(remaining, owedThis || monthAmount(ym));
         remaining -= share;
         if (share <= 0 && !isLast) continue;
         const ref = await addDoc(collection(db, "rentPayments"), {
@@ -2062,11 +2316,6 @@ function renderAdminPanel(el) {
     <div id="unitExpCatGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
 
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2" style="color:#1B4332">${icons.report}<h2 class="text-lg font-semibold">${t().unitExpenseEntries}</h2></div>
-    </div>
-    <div id="unitExpEntryGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
-
-    <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2" style="color:#1B4332">${icons.gear}<h2 class="text-lg font-semibold">${t().expenseCategories}</h2></div>
     </div>
     <div id="catGrid" class="grid gap-4 sm:grid-cols-2 mb-8"></div>
@@ -2094,7 +2343,6 @@ function renderAdminPanel(el) {
   paintAdminGrid();
   paintPropertyGrid();
   paintUnitExpCatGrid();
-  paintUnitExpEntryGrid();
   paintCategoryGrid();
   paintEventTypeGrid();
   paintEventPlaceGrid();
@@ -2294,53 +2542,70 @@ function openUnitExpCatModal(unitId, existing) {
   openModal(existing ? t().edit : t().addUnitExpenseCategory, `
     <div class="flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().newCategoryName}</span><input id="ucName" class="inp" value="${esc(existing?.name || "")}" /></label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().frequencyLabel}</span>
+        <select id="ucFreq" class="inp">
+          <option value="monthly" ${(existing?.frequency || "monthly") === "monthly" ? "selected" : ""}>${t().freqMonthly}</option>
+          <option value="daily" ${existing?.frequency === "daily" ? "selected" : ""}>${t().freqDaily}</option>
+          <option value="random" ${existing?.frequency === "random" ? "selected" : ""}>${t().freqRandom}</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().fixedAmountLabel}</span><input id="ucFixedAmount" type="number" class="inp" value="${existing?.fixedAmount || ""}" /></label>
       <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     wrap.querySelector("#saveBtn").addEventListener("click", () => {
       const name = wrap.querySelector("#ucName").value.trim();
       if (!name) return;
+      const data = { name, frequency: wrap.querySelector("#ucFreq").value, fixedAmount: Number(wrap.querySelector("#ucFixedAmount").value) || 0 };
       wrap.remove();
       if (existing) {
-        withPasswordConfirm(async () => { await updateDoc(doc(db, "unitExpenseCategories", existing.id), { name }); });
+        withPasswordConfirm(async () => { await updateDoc(doc(db, "unitExpenseCategories", existing.id), data); });
       } else {
-        addDoc(collection(db, "unitExpenseCategories"), { unitId, name, createdAt: serverTimestamp() });
+        addDoc(collection(db, "unitExpenseCategories"), { unitId, ...data, createdAt: serverTimestamp() });
       }
     });
   });
 }
 
-function paintUnitExpEntryGrid() {
-  const grid = document.getElementById("unitExpEntryGrid");
-  if (!grid) return;
-  grid.innerHTML = units.map(u => {
-    const cats = unitExpenseCategories.filter(c => c.unitId === u.id);
-    const entries = unitExpenses.filter(x => x.unitId === u.id).sort((a, b) => (a.date < b.date ? 1 : -1));
-    return `
-    <div class="card p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold text-sm" style="color:#1B4332">${esc(u.name)}</h3>
-        <button data-addentry="${u.id}" class="btn btn-ghost" style="padding:4px 8px;font-size:12px">${icons.plus}${t().addUnitExpenseEntry}</button>
-      </div>
-      <ul class="flex flex-col gap-1.5">
-        ${entries.map(x => `
-          <li class="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs" style="background:#F7F5F0">
-            <span>${esc(cats.find(c => c.id === x.categoryId)?.name || "—")} ${x.details ? "· " + esc(x.details) : ""} · ${esc(x.date)}</span>
-            <span class="flex items-center gap-2">
-              <span class="txt-expense font-medium">৳${Number(x.amount).toLocaleString()}</span>
-              <button data-editentry="${x.id}" style="color:#8a8578">${icons.pencil}</button>
-              <button data-delentry="${x.id}" style="color:#9B2C2C">${icons.trash}</button>
-            </span>
-          </li>`).join("") || `<li class="text-xs" style="color:#8a8578">—</li>`}
-      </ul>
+function paintUnitExpensePanel(body, unitId) {
+  const u = units.find(x => x.id === unitId);
+  const cats = unitExpenseCategories.filter(c => c.unitId === unitId);
+  const entries = unitExpenses.filter(x => x.unitId === unitId).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const add = isAdmin() || canAdd(unitId);
+  const edit = isAdmin() || canEdit(unitId);
+  body.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold" style="color:#1B4332">${esc(u?.name || "")} — ${t().unitExpenseEntries}</h3>
+      ${add ? `<button id="addUnitExpEntryBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px">${icons.plus}${t().addUnitExpenseEntry}</button>` : ""}
+    </div>
+    <div class="flex flex-wrap gap-2 mb-4">
+      ${cats.map(c => {
+        const due = unitExpenseCurrentDue(c), adv = unitExpenseCurrentAdvance(c);
+        return `<span class="badge ${due > 0 ? "badge-gold" : adv > 0 ? "badge-blue" : "badge-brown"}">${esc(c.name)}${due > 0 ? ` · ${t().due} ৳${due.toLocaleString()}` : adv > 0 ? ` · ${t().advance} ৳${adv.toLocaleString()}` : ""}</span>`;
+      }).join("") || `<span class="text-xs" style="color:#8a8578">${t().noData}</span>`}
+    </div>
+    <div class="flex flex-col gap-2">
+      ${entries.map(x => `
+        <div class="card p-3 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-sm font-medium truncate2">${esc(cats.find(c => c.id === x.categoryId)?.name || "—")} ${pendingApprovalFor(x.id) ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
+            <div class="text-xs truncate2" style="color:#8a8578">${x.details ? esc(x.details) + " · " : ""}${esc(x.date)}</div>
+          </div>
+          <div class="flex items-center gap-2" style="flex-shrink:0">
+            <span class="txt-expense font-medium">৳${Number(x.amount).toLocaleString()}</span>
+            ${edit ? `<button data-editentry="${x.id}" style="color:#8a8578">${icons.pencil}</button>` : ""}
+            ${isAdmin() ? `<button data-delentry="${x.id}" style="color:#9B2C2C">${icons.trash}</button>` : ""}
+          </div>
+        </div>`).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`}
     </div>`;
-  }).join("") || `<p class="text-xs" style="color:#8a8578">${t().noData}</p>`;
-  grid.querySelectorAll("[data-addentry]").forEach(b => b.addEventListener("click", () => openUnitExpEntryModal(b.getAttribute("data-addentry"))));
-  grid.querySelectorAll("[data-editentry]").forEach(b => b.addEventListener("click", () => {
+  const addBtn = document.getElementById("addUnitExpEntryBtn");
+  if (addBtn) addBtn.addEventListener("click", () => openUnitExpEntryModal(unitId));
+  body.querySelectorAll("[data-editentry]").forEach(b => b.addEventListener("click", () => {
     const x = unitExpenses.find(y => y.id === b.getAttribute("data-editentry"));
     openUnitExpEntryModal(x.unitId, x);
   }));
-  grid.querySelectorAll("[data-delentry]").forEach(b => b.addEventListener("click", () => {
+  body.querySelectorAll("[data-delentry]").forEach(b => b.addEventListener("click", () => {
     withPasswordConfirm(async () => { await deleteDoc(doc(db, "unitExpenses", b.getAttribute("data-delentry"))); });
   }));
 }
@@ -2353,7 +2618,7 @@ function openUnitExpEntryModal(unitId, existing) {
         <select id="ueCat" class="inp">${cats.map(c => `<option value="${c.id}" ${existing?.categoryId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("") || `<option value="">—</option>`}</select>
       </label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().amountLabel}</span><input id="ueAmount" type="number" class="inp" value="${existing?.amount || ""}" /></label>
-      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="ueDate" type="date" class="inp" value="${existing?.date || todayISO()}" /></label>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().dateLabel}</span><input id="ueDate" type="date" class="inp" value="${existing?.date || todayISO()}" /></label>
       <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().details}</span><input id="ueDetails" class="inp" value="${esc(existing?.details || "")}" /></label>
       <div class="flex justify-end gap-2"><button id="cancelBtn" class="btn btn-outline">${t().cancel}</button><button id="saveBtn" class="btn btn-primary">${t().save}</button></div>
     </div>`, (wrap) => {
@@ -2361,10 +2626,12 @@ function openUnitExpEntryModal(unitId, existing) {
     wrap.querySelector("#saveBtn").addEventListener("click", () => {
       const amount = Number(wrap.querySelector("#ueAmount").value) || 0;
       if (!amount) return;
-      const data = { categoryId: wrap.querySelector("#ueCat").value, amount, date: wrap.querySelector("#ueDate").value || todayISO(), details: wrap.querySelector("#ueDetails").value.trim() };
+      const dateVal = wrap.querySelector("#ueDate").value || todayISO();
+      const [dy, dm] = dateVal.split("-").map(Number);
+      const data = { categoryId: wrap.querySelector("#ueCat").value, amount, date: dateVal, month: dm, year: dy, details: wrap.querySelector("#ueDetails").value.trim() };
       wrap.remove();
       if (existing) {
-        withPasswordConfirm(async () => { await updateDoc(doc(db, "unitExpenses", existing.id), data); });
+        performEdit("unitExpenses", existing.id, data, unitId);
       } else {
         addDoc(collection(db, "unitExpenses"), { unitId, ...data, createdAt: serverTimestamp() });
       }
@@ -2521,6 +2788,7 @@ function targetLabel(req) {
   if (c === "expenses") { const x = expenses.find(y => y.id === req.targetId); return x ? `${x.tenantName || ""} — ${t().addExpense}` : t().addExpense; }
   if (c === "eventPayments") { const p = eventPayments.find(x => x.id === req.targetId); const ev = p ? events.find(e => e.id === p.eventId) : null; return ev ? `${ev.customerName} (${ev.memoNo}) — ${t().payHistory}` : t().payHistory; }
   if (c === "eventExpenses") { const x = eventExpenses.find(y => y.id === req.targetId); const ev = x ? events.find(e => e.id === x.eventId) : null; return ev ? `${ev.customerName} (${ev.memoNo}) — ${t().eventExpenseHistory}` : t().eventExpenseHistory; }
+  if (c === "unitExpenses") { const x = unitExpenses.find(y => y.id === req.targetId); const u = x ? units.find(un => un.id === x.unitId) : null; const cat = x ? unitExpenseCategories.find(cc => cc.id === x.categoryId) : null; return u ? `${u.name} — ${cat?.name || t().unitExpenseEntries}` : t().unitExpenseEntries; }
   return "—";
 }
 const FIELD_LABELS = {
@@ -2644,10 +2912,20 @@ function paintApprovalList() {
 function permMatrixHtml(existingPerms) {
   const perms = existingPerms || {};
   if (units.length === 0) return `<p class="text-xs" style="color:#8a8578">—</p>`;
-  return units.map(u => `
+  return units.map(u => {
+    const up = perms[u.id] || {};
+    return `
     <div class="mb-2">
       <div class="text-xs font-semibold mb-1" style="color:#1B4332">${esc(u.name)}</div>
       <div class="flex flex-col gap-1">
+        <div class="flex flex-wrap items-center justify-between text-sm rounded-lg px-3 py-1.5 gap-2" style="background:#F5EBDF">
+          <span class="shrink-0">${t().unitLevelPermLabel}</span>
+          <div class="flex flex-wrap items-center gap-3 text-xs">
+            <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${u.id}" data-permflag="view" ${up.view ? "checked" : ""} />${t().viewOnly}</label>
+            <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${u.id}" data-permflag="add" ${up.add ? "checked" : ""} />${t().dataAdd}</label>
+            <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${u.id}" data-permflag="edit" ${up.edit ? "checked" : ""} />${t().dataEdit}</label>
+          </div>
+        </div>
         ${subUnits.filter(s => s.unitId === u.id).map(s => {
           const p = perms[s.id] || {};
           return `
@@ -2661,9 +2939,10 @@ function permMatrixHtml(existingPerms) {
               <label class="flex items-center gap-1"><input type="checkbox" data-permsub="${s.id}" data-permflag="reportDownload" ${p.reportDownload ? "checked" : ""} />${t().canDownloadReports}</label>
             </div>
           </div>`;
-        }).join("") || `<p class="text-xs" style="color:#8a8578">—</p>`}
+        }).join("")}
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 function readPermMatrix(wrap) {
   const out = {};
@@ -2791,7 +3070,7 @@ function repaintCurrentTab() {
   if (tab === "dashboard") paintDashboardCard();
   if (tab === "dataEntry") paintDataEntryBody();
   if (tab === "adminPanel" && isAdmin()) {
-    paintAdminGrid(); paintPropertyGrid(); paintUnitExpCatGrid(); paintUnitExpEntryGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
+    paintAdminGrid(); paintPropertyGrid(); paintUnitExpCatGrid(); paintCategoryGrid(); paintEventTypeGrid(); paintEventPlaceGrid(); paintUsersList();
   }
   if (tab === "approvalPending") paintApprovalList();
   if (tab === "reports") paintReportBody();
@@ -2808,13 +3087,13 @@ function repaintCurrentTab() {
 
 function startAllListeners() {
   if (unsubs.length) return;
-  const bind = (name, target) => onSnapshot(collection(db, name), (snap) => {
+  const bind = (name, target, refreshShell) => onSnapshot(collection(db, name), (snap) => {
     target.length = 0;
     snap.docs.forEach(d => target.push({ id: d.id, ...d.data() }));
-    repaintCurrentTab();
+    if (refreshShell && document.querySelector(".tab-btn")) renderApp(); else repaintCurrentTab();
   });
-  unsubs.push(bind("units", units));
-  unsubs.push(bind("subUnits", subUnits));
+  unsubs.push(bind("units", units, true));
+  unsubs.push(bind("subUnits", subUnits, true));
   unsubs.push(bind("users", allUsers));
   unsubs.push(bind("expenseCategories", expenseCategories));
   unsubs.push(bind("eventTypes", eventTypes));
@@ -2824,6 +3103,7 @@ function startAllListeners() {
   unsubs.push(bind("unitExpenses", unitExpenses));
   unsubs.push(bind("tenants", tenants));
   unsubs.push(bind("rentPayments", rentPayments));
+  unsubs.push(bind("rentSetups", rentSetups));
   unsubs.push(bind("expenses", expenses));
   unsubs.push(bind("events", events));
   unsubs.push(bind("eventPayments", eventPayments));

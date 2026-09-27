@@ -111,9 +111,9 @@ const STR = {
     addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a Sub Unit",
     noData: "Nothing here yet.",
     quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.", serial: "Serial",
-    customerName: "Customer Name", eventType: "Event Type", addType: "Add Type",
+    customerName: "Customer Name", eventType: "Event Type", addType: "Add Type", addEventTypeRow: "Add Event Type",
     bookingDate: "Booking Date", eventDate: "Event Date", eventTime: "Event Time",
-    tableQty: "Table Qty (Lunch)", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
+    tableQty: "Table Qty", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
     advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
     balance: "Balance", collected: "Collected", status: "Status",
     pendingStatus: "Pending", doneStatus: "Done", cancelledStatus: "Cancelled",
@@ -192,9 +192,9 @@ const STR = {
     addCategory: "খাত যোগ করুন", newCategoryName: "নতুন খাতের নাম", selectSubUnit: "একটি সাব ইউনিট বাছাই করুন",
     noData: "এখনো কিছু যোগ করা হয়নি।",
     quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং", serial: "সিরিয়াল",
-    customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন",
+    customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন", addEventTypeRow: "আরেকটি ইভেন্ট টাইপ যোগ করুন",
     bookingDate: "বুকিং তারিখ", eventDate: "ইভেন্টের তারিখ", eventTime: "ইভেন্টের সময়",
-    tableQty: "টেবিল সংখ্যা (লাঞ্চ)", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
+    tableQty: "টেবিল সংখ্যা", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
     advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
     balance: "বাকি আছে", collected: "আদায়কৃত", status: "অবস্থা",
     pendingStatus: "পেন্ডিং", doneStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
@@ -595,7 +595,11 @@ function renderApp() {
           <span class="text-xs font-medium" style="color:#B08968">${esc(t().brand)}</span>
         </div>
         <div class="flex items-center gap-2">
-          <div class="flex items-center gap-1 border rounded-lg px-2 py-1 text-xs bg-white" style="border-color:#D8D2C2">${esc(roleLabel)}</div>
+          <div class="flex items-center gap-1 border rounded-lg px-2 py-1 text-xs bg-white" style="border-color:#D8D2C2">
+            <span class="font-medium" style="color:#1B4332">${esc(profile?.name || profile?.username || "")}</span>
+            <span style="color:#8a8578">·</span>
+            <span>${esc(roleLabel)}</span>
+          </div>
           <button id="settingsBtn" class="btn btn-outline" style="padding:6px 10px;font-size:12px">${icons.sliders}</button>
           <button id="logoutBtn" class="btn btn-outline" style="padding:6px 10px;color:#9B2C2C">${icons.logout}</button>
         </div>
@@ -1937,13 +1941,18 @@ function paintEventsBody(body, su) {
   document.getElementById("eventsListBox").querySelectorAll("[data-openevent]").forEach(c => c.addEventListener("click", () => openEventDetailModal(c.getAttribute("data-openevent"))));
 }
 
-function eventTypeChipsHtml(selectedIds, typesList) {
-  return `<div id="etypeChips" class="flex flex-wrap gap-1.5">
-    ${typesList.map(et => `
-      <button type="button" data-etype="${et.id}" class="badge" style="cursor:pointer;border:1px solid ${selectedIds.includes(et.id) ? "#1B4332" : "#D8D2C2"};background:${selectedIds.includes(et.id) ? "#1B4332" : "#fff"};color:${selectedIds.includes(et.id) ? "#fff" : "#6B6659"}">
-        ${esc(et.name)}
-      </button>`).join("") || `<span class="text-xs" style="color:#8a8578">—</span>`}
-  </div>`;
+function eventTypeSlotRowsHtml(slots, unitTypes) {
+  return slots.map((s, i) => `
+    <div class="grid grid-cols-3 gap-2 items-center" data-sloti="${i}">
+      <select data-slot-type="${i}" class="inp" style="font-size:12px">
+        ${unitTypes.map(et => `<option value="${et.id}" ${s.typeId === et.id ? "selected" : ""}>${esc(et.name)}</option>`).join("") || `<option value="">—</option>`}
+      </select>
+      <input type="date" data-slot-date="${i}" class="inp" style="font-size:12px" value="${s.date || todayISO()}" />
+      <div class="flex items-center gap-1">
+        <input type="time" data-slot-time="${i}" class="inp" style="font-size:12px" value="${s.time || "18:00"}" />
+        ${slots.length > 1 ? `<button type="button" data-removeslot="${i}" style="color:#9B2C2C">${icons.trash}</button>` : ""}
+      </div>
+    </div>`).join("");
 }
 
 function openBookEventModal(subUnitId, existing) {
@@ -1952,8 +1961,14 @@ function openBookEventModal(subUnitId, existing) {
   const unitId = su?.unitId;
   const unitTypes = eventTypes.filter(et => et.unitId === unitId);
   const unitPlaces = eventPlaces.filter(p => p.unitId === unitId);
-  let selected = existing ? [...(existing.eventTypeIds || [])] : [];
-  let currentPrefix = memoPrefixFor(subUnitId, existing?.eventDate || todayISO());
+  let slots = existing
+    ? (Array.isArray(existing.eventTypeSlots) && existing.eventTypeSlots.length
+        ? existing.eventTypeSlots.map(s => ({ typeId: s.typeId, date: s.date, time: s.time }))
+        : (existing.eventTypeIds || []).map(id => ({ typeId: id, date: existing.eventDate || todayISO(), time: existing.eventTime || "18:00" })))
+    : [];
+  if (!slots.length) slots = [{ typeId: unitTypes[0]?.id || "", date: todayISO(), time: "18:00" }];
+  const earliestDate = () => slots.map(s => s.date).filter(Boolean).sort()[0] || todayISO();
+  let currentPrefix = memoPrefixFor(subUnitId, existing?.eventDate || earliestDate());
   const serialPrefill = existing ? (existing.memoNo.startsWith(currentPrefix) ? existing.memoNo.slice(currentPrefix.length) : existing.memoNo) : "";
   openModal(isEdit ? t().editEvent : t().bookEvent, `
     <div class="flex flex-col gap-4">
@@ -1973,20 +1988,24 @@ function openBookEventModal(subUnitId, existing) {
         <span class="font-medium" style="color:#6B6659">${t().address}</span>
         <input id="evAddress" class="inp" value="${esc(existing?.customerAddress || "")}" />
       </label>
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().eventPlace}</span>
-        <select id="evPlace" class="inp">
-          ${unitPlaces.map(p => `<option value="${p.id}" ${existing?.placeId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("") || `<option value="">—</option>`}
-        </select>
-      </label>
-      <div class="flex flex-col gap-1 text-sm">
-        <span class="font-medium" style="color:#6B6659">${t().eventType}</span>
-        <div id="etypeWrap">${eventTypeChipsHtml(selected, unitTypes)}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().eventPlace}</span>
+          <select id="evPlace" class="inp">
+            ${unitPlaces.map(p => `<option value="${p.id}" ${existing?.placeId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("") || `<option value="">—</option>`}
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-medium" style="color:#6B6659">${t().bookingDate}</span>
+          <input id="evBooking" type="date" class="inp" value="${existing?.bookingDate || todayISO()}" />
+        </label>
+      </div>
+      <div class="flex flex-col gap-2 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().eventType} - ${t().eventDate} - ${t().eventTime}</span>
+        <div id="etypeSlotsWrap" class="flex flex-col gap-2">${eventTypeSlotRowsHtml(slots, unitTypes)}</div>
+        <button type="button" id="addSlotBtn" class="btn btn-outline" style="padding:4px 8px;font-size:12px;align-self:flex-start">${icons.plus}${t().addEventTypeRow}</button>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().bookingDate}</span><input id="evBooking" type="date" class="inp" value="${existing?.bookingDate || todayISO()}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventDate}</span><input id="evDate" type="date" class="inp" value="${existing?.eventDate || todayISO()}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().eventTime}</span><input id="evTime" type="time" class="inp" value="${existing?.eventTime || "18:00"}" /></label>
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" value="${existing?.totalRentAmount || ""}" /></label>
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" value="${existing?.tableQty ?? ""}" /></label>
         <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" value="${existing?.boyQty ?? ""}" /></label>
@@ -1996,20 +2015,37 @@ function openBookEventModal(subUnitId, existing) {
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
       </div>
     </div>`, (wrap) => {
-    function bindChips() {
-      wrap.querySelectorAll("[data-etype]").forEach(b => b.addEventListener("click", () => {
-        const id = b.getAttribute("data-etype");
-        selected = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
-        wrap.querySelector("#etypeWrap").innerHTML = eventTypeChipsHtml(selected, unitTypes);
-        bindChips();
+    function refreshPrefix() {
+      currentPrefix = memoPrefixFor(subUnitId, earliestDate());
+      wrap.querySelector("#memoPrefixSpan").textContent = currentPrefix;
+    }
+    function bindSlotEvents() {
+      wrap.querySelectorAll("[data-slot-type]").forEach(el => el.addEventListener("change", () => {
+        slots[Number(el.getAttribute("data-slot-type"))].typeId = el.value;
+      }));
+      wrap.querySelectorAll("[data-slot-date]").forEach(el => el.addEventListener("change", () => {
+        slots[Number(el.getAttribute("data-slot-date"))].date = el.value;
+        refreshPrefix();
+      }));
+      wrap.querySelectorAll("[data-slot-time]").forEach(el => el.addEventListener("change", () => {
+        slots[Number(el.getAttribute("data-slot-time"))].time = el.value;
+      }));
+      wrap.querySelectorAll("[data-removeslot]").forEach(el => el.addEventListener("click", () => {
+        slots.splice(Number(el.getAttribute("data-removeslot")), 1);
+        renderSlots();
       }));
     }
-    bindChips();
-    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
-    wrap.querySelector("#evDate").addEventListener("change", (e) => {
-      currentPrefix = memoPrefixFor(subUnitId, e.target.value);
-      wrap.querySelector("#memoPrefixSpan").textContent = currentPrefix;
+    function renderSlots() {
+      wrap.querySelector("#etypeSlotsWrap").innerHTML = eventTypeSlotRowsHtml(slots, unitTypes);
+      bindSlotEvents();
+      refreshPrefix();
+    }
+    bindSlotEvents();
+    wrap.querySelector("#addSlotBtn").addEventListener("click", () => {
+      slots.push({ typeId: unitTypes[0]?.id || "", date: earliestDate(), time: "18:00" });
+      renderSlots();
     });
+    wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
     const checkDup = () => {
       const warn = wrap.querySelector("#memoWarn");
       const full = currentPrefix + wrap.querySelector("#evSerial").value.trim();
@@ -2021,22 +2057,24 @@ function openBookEventModal(subUnitId, existing) {
       const fields = {
         evSerial: wrap.querySelector("#evSerial"), evName: wrap.querySelector("#evName"),
         evAddress: wrap.querySelector("#evAddress"), evPlace: wrap.querySelector("#evPlace"),
-        evBooking: wrap.querySelector("#evBooking"), evDate: wrap.querySelector("#evDate"), evTime: wrap.querySelector("#evTime"),
+        evBooking: wrap.querySelector("#evBooking"),
         evTotal: wrap.querySelector("#evTotal"), evTable: wrap.querySelector("#evTable"), evBoy: wrap.querySelector("#evBoy"),
       };
       let ok = true;
       Object.values(fields).forEach(f => {
         if (!f.value || !f.value.toString().trim()) { markInvalid(f); ok = false; } else clearInvalid(f);
       });
+      const validSlots = slots.filter(s => s.typeId && s.date && s.time);
+      if (!validSlots.length || validSlots.length !== slots.length) ok = false;
       const fullMemo = currentPrefix + fields.evSerial.value.trim();
       if (memoTaken(subUnitId, fullMemo, existing?.id)) { markInvalid(fields.evSerial); ok = false; }
-      if (!selected.length) ok = false;
       if (!ok) { wrap.querySelector("#memoWarn").textContent = t().fillAllFields; return; }
 
+      const sortedSlots = [...slots].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       const data = {
         memoNo: fullMemo, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
-        placeId: fields.evPlace.value, eventTypeIds: selected,
-        bookingDate: fields.evBooking.value, eventDate: fields.evDate.value, eventTime: fields.evTime.value,
+        placeId: fields.evPlace.value, eventTypeIds: slots.map(s => s.typeId), eventTypeSlots: slots,
+        bookingDate: fields.evBooking.value, eventDate: sortedSlots[0].date, eventTime: sortedSlots[0].time,
         totalRentAmount: Number(fields.evTotal.value) || 0, tableQty: Number(fields.evTable.value) || 0, boyQty: Number(fields.evBoy.value) || 0,
       };
       if (isEdit) {
@@ -2075,7 +2113,12 @@ function paintEventDetailBody(eventId) {
   box.innerHTML = `
     ${pendingReq ? `<div class="badge badge-gold mb-3">${t().approvalPendingBadge}</div>` : ""}
     <div class="grid grid-cols-2 gap-2 text-sm mb-4">
-      <div><span style="color:#8a8578">${t().eventDate}: </span>${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
+      <div class="col-span-2">
+        <span style="color:#8a8578">${t().eventType}: </span>
+        ${Array.isArray(e.eventTypeSlots) && e.eventTypeSlots.length
+          ? e.eventTypeSlots.map(s => `<div class="text-xs">${esc(eventTypes.find(et => et.id === s.typeId)?.name || s.typeId)} — ${esc(s.date || "")} ${esc(s.time || "")}</div>`).join("")
+          : `${esc(e.eventDate || "")} ${esc(e.eventTime || "")}`}
+      </div>
       <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : (balance <= 0 ? t().doneStatus : t().pendingStatus)}</span></div>
       <div class="col-span-2"><span style="color:#8a8578">${t().eventPlace}: </span>${esc(placeName(e.placeId))}</div>
       <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(e.customerAddress || "—")}</div>
@@ -2796,11 +2839,12 @@ const FIELD_LABELS = {
   customerName: "customerName", customerAddress: "address", totalRentAmount: "totalRent",
   tableQty: "tableQty", boyQty: "boyQty", eventDate: "eventDate", eventTime: "eventTime",
   bookingDate: "bookingDate", memoNo: "memoNo", amount: "amountLabel", paidDate: "bookingDate",
-  date: "bookingDate", details: "details", eventTypeIds: "eventType", placeId: "eventPlace", note: "details",
+  date: "bookingDate", details: "details", eventTypeIds: "eventType", eventTypeSlots: "eventType", placeId: "eventPlace", note: "details",
 };
 function formatFieldValue(key, val) {
   if (val == null || val === "") return "—";
   if (key === "eventTypeIds") return (Array.isArray(val) ? val : []).map(id => eventTypes.find(e => e.id === id)?.name || id).join(", ") || "—";
+  if (key === "eventTypeSlots") return (Array.isArray(val) ? val : []).map(s => `${eventTypes.find(e => e.id === s.typeId)?.name || s.typeId} (${s.date || ""} ${s.time || ""})`).join(", ") || "—";
   if (key === "placeId") return placeName(val);
   if (key === "amount" || key === "rentAmount" || key === "totalRentAmount") return `৳${Number(val).toLocaleString()}`;
   return esc(String(val));

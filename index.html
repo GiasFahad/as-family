@@ -113,7 +113,7 @@ const STR = {
     quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.", serial: "Serial",
     customerName: "Customer Name", eventType: "Event Type", addType: "Add Type", addEventTypeRow: "Add Event Type",
     bookingDate: "Booking Date", eventDate: "Event Date", eventTime: "Event Time",
-    tableQty: "Table Qty", boyQty: "Boy Qty (Waiter)", totalRent: "Total Rent (৳)",
+    tableQty: "Table Qty", boyQty: "Boy Qty (Waiter)", guestQty: "Guest Qty", totalRent: "Total Rent (৳)",
     advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
     balance: "Balance", collected: "Collected", status: "Status",
     pendingStatus: "Pending", doneStatus: "Done", cancelledStatus: "Cancelled",
@@ -194,7 +194,7 @@ const STR = {
     quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং", serial: "সিরিয়াল",
     customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন", addEventTypeRow: "আরেকটি ইভেন্ট টাইপ যোগ করুন",
     bookingDate: "বুকিং তারিখ", eventDate: "ইভেন্টের তারিখ", eventTime: "ইভেন্টের সময়",
-    tableQty: "টেবিল সংখ্যা", boyQty: "বয় সংখ্যা (ওয়েটার)", totalRent: "মোট ভাড়া (৳)",
+    tableQty: "টেবিল সংখ্যা", boyQty: "বয় সংখ্যা (ওয়েটার)", guestQty: "গেস্ট সংখ্যা", totalRent: "মোট ভাড়া (৳)",
     advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
     balance: "বাকি আছে", collected: "আদায়কৃত", status: "অবস্থা",
     pendingStatus: "পেন্ডিং", doneStatus: "সম্পন্ন", cancelledStatus: "বাতিল",
@@ -1943,14 +1943,21 @@ function paintEventsBody(body, su) {
 
 function eventTypeSlotRowsHtml(slots, unitTypes) {
   return slots.map((s, i) => `
-    <div class="grid grid-cols-3 gap-2 items-center" data-sloti="${i}">
-      <select data-slot-type="${i}" class="inp" style="font-size:12px">
-        ${unitTypes.map(et => `<option value="${et.id}" ${s.typeId === et.id ? "selected" : ""}>${esc(et.name)}</option>`).join("") || `<option value="">—</option>`}
-      </select>
-      <input type="date" data-slot-date="${i}" class="inp" style="font-size:12px" value="${s.date || todayISO()}" />
-      <div class="flex items-center gap-1">
-        <input type="time" data-slot-time="${i}" class="inp" style="font-size:12px" value="${s.time || "18:00"}" />
+    <div class="rounded-lg border p-3 flex flex-col gap-2" style="border-color:#D8D2C2" data-sloti="${i}">
+      <div class="flex items-center gap-2">
+        <select data-slot-type="${i}" class="inp" style="font-size:12px">
+          ${unitTypes.map(et => `<option value="${et.id}" ${s.typeId === et.id ? "selected" : ""}>${esc(et.name)}</option>`).join("") || `<option value="">—</option>`}
+        </select>
         ${slots.length > 1 ? `<button type="button" data-removeslot="${i}" style="color:#9B2C2C">${icons.trash}</button>` : ""}
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="date" data-slot-date="${i}" class="inp" style="font-size:12px" value="${s.date || todayISO()}" />
+        <input type="time" data-slot-time="${i}" class="inp" style="font-size:12px" value="${s.time || "18:00"}" />
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <input type="number" data-slot-table="${i}" class="inp" style="font-size:12px" placeholder="${t().tableQty}" value="${s.tableQty ?? ""}" />
+        <input type="number" data-slot-boy="${i}" class="inp" style="font-size:12px" placeholder="${t().boyQty}" value="${s.boyQty ?? ""}" />
+        <input type="number" data-slot-guest="${i}" class="inp" style="font-size:12px" placeholder="${t().guestQty}" value="${s.guestQty ?? ""}" />
       </div>
     </div>`).join("");
 }
@@ -1963,10 +1970,13 @@ function openBookEventModal(subUnitId, existing) {
   const unitPlaces = eventPlaces.filter(p => p.unitId === unitId);
   let slots = existing
     ? (Array.isArray(existing.eventTypeSlots) && existing.eventTypeSlots.length
-        ? existing.eventTypeSlots.map(s => ({ typeId: s.typeId, date: s.date, time: s.time }))
-        : (existing.eventTypeIds || []).map(id => ({ typeId: id, date: existing.eventDate || todayISO(), time: existing.eventTime || "18:00" })))
+        ? existing.eventTypeSlots.map(s => ({ typeId: s.typeId, date: s.date, time: s.time, tableQty: s.tableQty, boyQty: s.boyQty, guestQty: s.guestQty }))
+        : (existing.eventTypeIds || []).map((id, idx) => ({
+            typeId: id, date: existing.eventDate || todayISO(), time: existing.eventTime || "18:00",
+            tableQty: idx === 0 ? (existing.tableQty ?? "") : "", boyQty: idx === 0 ? (existing.boyQty ?? "") : "", guestQty: "",
+          })))
     : [];
-  if (!slots.length) slots = [{ typeId: unitTypes[0]?.id || "", date: todayISO(), time: "18:00" }];
+  if (!slots.length) slots = [{ typeId: unitTypes[0]?.id || "", date: todayISO(), time: "18:00", tableQty: "", boyQty: "", guestQty: "" }];
   const earliestDate = () => slots.map(s => s.date).filter(Boolean).sort()[0] || todayISO();
   let currentPrefix = memoPrefixFor(subUnitId, existing?.eventDate || earliestDate());
   const serialPrefill = existing ? (existing.memoNo.startsWith(currentPrefix) ? existing.memoNo.slice(currentPrefix.length) : existing.memoNo) : "";
@@ -2005,11 +2015,7 @@ function openBookEventModal(subUnitId, existing) {
         <div id="etypeSlotsWrap" class="flex flex-col gap-2">${eventTypeSlotRowsHtml(slots, unitTypes)}</div>
         <button type="button" id="addSlotBtn" class="btn btn-outline" style="padding:4px 8px;font-size:12px;align-self:flex-start">${icons.plus}${t().addEventTypeRow}</button>
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" value="${existing?.totalRentAmount || ""}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().tableQty}</span><input id="evTable" type="number" class="inp" value="${existing?.tableQty ?? ""}" /></label>
-        <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().boyQty}</span><input id="evBoy" type="number" class="inp" value="${existing?.boyQty ?? ""}" /></label>
-      </div>
+      <label class="flex flex-col gap-1 text-sm"><span class="font-medium" style="color:#6B6659">${t().totalRent}</span><input id="evTotal" type="number" class="inp" value="${existing?.totalRentAmount || ""}" /></label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -2030,6 +2036,15 @@ function openBookEventModal(subUnitId, existing) {
       wrap.querySelectorAll("[data-slot-time]").forEach(el => el.addEventListener("change", () => {
         slots[Number(el.getAttribute("data-slot-time"))].time = el.value;
       }));
+      wrap.querySelectorAll("[data-slot-table]").forEach(el => el.addEventListener("input", () => {
+        slots[Number(el.getAttribute("data-slot-table"))].tableQty = el.value;
+      }));
+      wrap.querySelectorAll("[data-slot-boy]").forEach(el => el.addEventListener("input", () => {
+        slots[Number(el.getAttribute("data-slot-boy"))].boyQty = el.value;
+      }));
+      wrap.querySelectorAll("[data-slot-guest]").forEach(el => el.addEventListener("input", () => {
+        slots[Number(el.getAttribute("data-slot-guest"))].guestQty = el.value;
+      }));
       wrap.querySelectorAll("[data-removeslot]").forEach(el => el.addEventListener("click", () => {
         slots.splice(Number(el.getAttribute("data-removeslot")), 1);
         renderSlots();
@@ -2042,7 +2057,7 @@ function openBookEventModal(subUnitId, existing) {
     }
     bindSlotEvents();
     wrap.querySelector("#addSlotBtn").addEventListener("click", () => {
-      slots.push({ typeId: unitTypes[0]?.id || "", date: earliestDate(), time: "18:00" });
+      slots.push({ typeId: unitTypes[0]?.id || "", date: earliestDate(), time: "18:00", tableQty: "", boyQty: "", guestQty: "" });
       renderSlots();
     });
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
@@ -2058,7 +2073,7 @@ function openBookEventModal(subUnitId, existing) {
         evSerial: wrap.querySelector("#evSerial"), evName: wrap.querySelector("#evName"),
         evAddress: wrap.querySelector("#evAddress"), evPlace: wrap.querySelector("#evPlace"),
         evBooking: wrap.querySelector("#evBooking"),
-        evTotal: wrap.querySelector("#evTotal"), evTable: wrap.querySelector("#evTable"), evBoy: wrap.querySelector("#evBoy"),
+        evTotal: wrap.querySelector("#evTotal"),
       };
       let ok = true;
       Object.values(fields).forEach(f => {
@@ -2070,12 +2085,16 @@ function openBookEventModal(subUnitId, existing) {
       if (memoTaken(subUnitId, fullMemo, existing?.id)) { markInvalid(fields.evSerial); ok = false; }
       if (!ok) { wrap.querySelector("#memoWarn").textContent = t().fillAllFields; return; }
 
-      const sortedSlots = [...slots].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      const cleanSlots = slots.map(s => ({
+        typeId: s.typeId, date: s.date, time: s.time,
+        tableQty: Number(s.tableQty) || 0, boyQty: Number(s.boyQty) || 0, guestQty: Number(s.guestQty) || 0,
+      }));
+      const sortedSlots = [...cleanSlots].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       const data = {
         memoNo: fullMemo, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
-        placeId: fields.evPlace.value, eventTypeIds: slots.map(s => s.typeId), eventTypeSlots: slots,
+        placeId: fields.evPlace.value, eventTypeIds: cleanSlots.map(s => s.typeId), eventTypeSlots: cleanSlots,
         bookingDate: fields.evBooking.value, eventDate: sortedSlots[0].date, eventTime: sortedSlots[0].time,
-        totalRentAmount: Number(fields.evTotal.value) || 0, tableQty: Number(fields.evTable.value) || 0, boyQty: Number(fields.evBoy.value) || 0,
+        totalRentAmount: Number(fields.evTotal.value) || 0,
       };
       if (isEdit) {
         const changed = diffChanged(existing, data);
@@ -2116,7 +2135,7 @@ function paintEventDetailBody(eventId) {
       <div class="col-span-2">
         <span style="color:#8a8578">${t().eventType}: </span>
         ${Array.isArray(e.eventTypeSlots) && e.eventTypeSlots.length
-          ? e.eventTypeSlots.map(s => `<div class="text-xs">${esc(eventTypes.find(et => et.id === s.typeId)?.name || s.typeId)} — ${esc(s.date || "")} ${esc(s.time || "")}</div>`).join("")
+          ? e.eventTypeSlots.map(s => `<div class="text-xs">${esc(eventTypes.find(et => et.id === s.typeId)?.name || s.typeId)} — ${esc(s.date || "")} ${esc(s.time || "")}${(s.tableQty || s.boyQty || s.guestQty) ? ` · ${t().tableQty} ${s.tableQty || 0}, ${t().boyQty} ${s.boyQty || 0}, ${t().guestQty} ${s.guestQty || 0}` : ""}</div>`).join("")
           : `${esc(e.eventDate || "")} ${esc(e.eventTime || "")}`}
       </div>
       <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : (balance <= 0 ? t().doneStatus : t().pendingStatus)}</span></div>
@@ -2198,6 +2217,10 @@ function openOtherServiceModal(ev) {
         <span class="font-medium" style="color:#6B6659">${t().otherServiceNote}</span>
         <input id="osNote" class="inp" />
       </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().dateLabel}</span>
+        <input id="osDate" type="date" class="inp" value="${todayISO()}" />
+      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -2208,7 +2231,7 @@ function openOtherServiceModal(ev) {
       const amount = Number(wrap.querySelector("#osAmount").value) || 0;
       if (!amount) return;
       await addDoc(collection(db, "eventOtherServices"), {
-        eventId: ev.id, amount, note: wrap.querySelector("#osNote").value.trim(), date: todayISO(), createdAt: serverTimestamp(),
+        eventId: ev.id, amount, note: wrap.querySelector("#osNote").value.trim(), date: wrap.querySelector("#osDate").value || todayISO(), createdAt: serverTimestamp(),
       });
       wrap.remove();
     });
@@ -2224,6 +2247,10 @@ function openEventPaymentModal(ev, type, max, defaultVal) {
         <input id="payAmount" type="number" class="inp" ${max != null ? `max="${max}"` : ""} value="${defaultVal != null ? Math.max(defaultVal, 0) : ""}" />
       </label>
       ${max != null ? `<p class="text-xs" style="color:#8a8578">Max: ৳${max.toLocaleString()}</p>` : ""}
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().dateLabel}</span>
+        <input id="payDate" type="date" class="inp" value="${todayISO()}" />
+      </label>
       <div class="flex justify-end gap-2">
         <button id="cancelBtn" class="btn btn-outline">${t().cancel}</button>
         <button id="saveBtn" class="btn btn-primary">${t().save}</button>
@@ -2233,7 +2260,8 @@ function openEventPaymentModal(ev, type, max, defaultVal) {
     wrap.querySelector("#saveBtn").addEventListener("click", async () => {
       const amount = Number(wrap.querySelector("#payAmount").value) || 0;
       if (!amount) return;
-      await addDoc(collection(db, "eventPayments"), { eventId: ev.id, type, amount, paidDate: todayISO(), createdAt: serverTimestamp() });
+      const paidDate = wrap.querySelector("#payDate").value || todayISO();
+      await addDoc(collection(db, "eventPayments"), { eventId: ev.id, type, amount, paidDate, createdAt: serverTimestamp() });
       wrap.remove();
     });
   });

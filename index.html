@@ -111,7 +111,7 @@ const STR = {
     addCategory: "Add Category", newCategoryName: "New category name", selectSubUnit: "Select a Sub Unit",
     noData: "Nothing here yet.",
     quickBookEvent: "Quick Book: New Event", bookEvent: "Book Event", memoNo: "Memo No.", serial: "Serial",
-    customerName: "Customer Name", eventType: "Event Type", addType: "Add Type", addEventTypeRow: "Add Event Type",
+    customerName: "Customer Name", eventType: "Event Type", addType: "Add Type", addEventTypeRow: "Add more event",
     bookingDate: "Booking Date", eventDate: "Event Date", eventTime: "Event Time",
     tableQty: "Table Qty", boyQty: "Boy Qty (Waiter)", guestQty: "Guest Qty", totalRent: "Total Rent (৳)",
     advance: "Advance", dueCollection: "Due Collection", refund: "Advance Refund",
@@ -142,7 +142,7 @@ const STR = {
     rentStartLabel: "Rent Accounting Starts From", noteLabel: "Note", dateLabel: "Date",
     rentHistory: "Rent History", addRentChange: "Add Rent Change", runningLabel: "Running",
     newRentAmount: "New Rent Amount (৳)", startingFrom: "Starting From", endMonthLabel: "End Month (previous period)",
-    editRentSetup: "Edit Rent Setup", currentRentLabel: "Current Rent",
+    editRentSetup: "Edit Rent Setup", currentRentLabel: "Current Rent", dayLabel: "Day", nightLabel: "Night",
     reportPeriod: "Period", daily: "Daily", monthly2: "Monthly", yearly: "Yearly",
     allSubUnits: "All Sub Units", totalIncome: "Total Income", totalExpenseR: "Total Expense", net: "Net",
     downloadExcel: "Download Excel", downloadPdf: "Download PDF", noReportData: "No transactions in this period.",
@@ -192,7 +192,7 @@ const STR = {
     addCategory: "খাত যোগ করুন", newCategoryName: "নতুন খাতের নাম", selectSubUnit: "একটি সাব ইউনিট বাছাই করুন",
     noData: "এখনো কিছু যোগ করা হয়নি।",
     quickBookEvent: "দ্রুত বুকিং: নতুন ইভেন্ট", bookEvent: "ইভেন্ট বুক করুন", memoNo: "মেমো নং", serial: "সিরিয়াল",
-    customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন", addEventTypeRow: "আরেকটি ইভেন্ট টাইপ যোগ করুন",
+    customerName: "গ্রাহকের নাম", eventType: "ইভেন্টের ধরন", addType: "ধরন যোগ করুন", addEventTypeRow: "আরও ইভেন্ট যোগ করুন",
     bookingDate: "বুকিং তারিখ", eventDate: "ইভেন্টের তারিখ", eventTime: "ইভেন্টের সময়",
     tableQty: "টেবিল সংখ্যা", boyQty: "বয় সংখ্যা (ওয়েটার)", guestQty: "গেস্ট সংখ্যা", totalRent: "মোট ভাড়া (৳)",
     advance: "অগ্রিম", dueCollection: "বাকি আদায়", refund: "অগ্রিম ফেরত",
@@ -223,7 +223,7 @@ const STR = {
     rentStartLabel: "ভাড়ার হিসাব যে মাস থেকে শুরু", noteLabel: "নোট", dateLabel: "তারিখ",
     rentHistory: "ভাড়ার ইতিহাস", addRentChange: "ভাড়া পরিবর্তন যোগ করুন", runningLabel: "চলমান",
     newRentAmount: "নতুন ভাড়া (৳)", startingFrom: "শুরু মাস", endMonthLabel: "শেষ মাস (আগের মেয়াদের)",
-    editRentSetup: "ভাড়া সেটআপ এডিট", currentRentLabel: "বর্তমান ভাড়া",
+    editRentSetup: "ভাড়া সেটআপ এডিট", currentRentLabel: "বর্তমান ভাড়া", dayLabel: "দিন", nightLabel: "রাত",
     reportPeriod: "মেয়াদ", daily: "দৈনিক", monthly2: "মাসিক", yearly: "বাৎসরিক",
     allSubUnits: "সব সাব ইউনিট", totalIncome: "মোট আয়", totalExpenseR: "মোট খরচ", net: "নিট",
     downloadExcel: "এক্সেল ডাউনলোড", downloadPdf: "পিডিএফ ডাউনলোড", noReportData: "এই সময়ে কোনো লেনদেন নেই।",
@@ -1932,7 +1932,7 @@ function paintEventsBody(body, su) {
         <div>
           <div class="text-sm font-semibold" style="color:#1B4332">${esc(e.customerName)} <span class="text-xs font-normal" style="color:#B08968">${esc(e.memoNo)}</span>
           ${pendingReq ? `<span class="badge badge-gold ml-1">${t().approvalPendingBadge}</span>` : ""}</div>
-          <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")} ${esc(e.eventTime || "")}</div>
+          <div class="text-xs" style="color:#8a8578">${icons.pin} ${esc(placeName(e.placeId))} · ${esc(e.eventDate || "")} ${esc(dayNightLabel(e.eventTime))}</div>
         </div>
         <span class="badge ${tone}">${statusText} · ৳${Math.max(balance, 0).toLocaleString()}</span>
       </div>
@@ -1942,24 +1942,57 @@ function paintEventsBody(body, su) {
 }
 
 function eventTypeSlotRowsHtml(slots, unitTypes) {
+  const cellStyle = "border:1px solid #D8D2C2;padding:4px";
+  const thStyle = `${cellStyle};background:#EAF3EA;font-size:11px;font-weight:600;color:#1B4332;text-align:center`;
   return slots.map((s, i) => `
-    <div class="rounded-lg border p-3 flex flex-col gap-2" style="border-color:#D8D2C2" data-sloti="${i}">
-      <div class="flex items-center gap-2">
-        <select data-slot-type="${i}" class="inp" style="font-size:12px">
-          ${unitTypes.map(et => `<option value="${et.id}" ${s.typeId === et.id ? "selected" : ""}>${esc(et.name)}</option>`).join("") || `<option value="">—</option>`}
-        </select>
-        ${slots.length > 1 ? `<button type="button" data-removeslot="${i}" style="color:#9B2C2C">${icons.trash}</button>` : ""}
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <input type="date" data-slot-date="${i}" class="inp" style="font-size:12px" value="${s.date || todayISO()}" />
-        <input type="time" data-slot-time="${i}" class="inp" style="font-size:12px" value="${s.time || "18:00"}" />
-      </div>
-      <div class="grid grid-cols-3 gap-2">
-        <input type="number" data-slot-table="${i}" class="inp" style="font-size:12px" placeholder="${t().tableQty}" value="${s.tableQty ?? ""}" />
-        <input type="number" data-slot-boy="${i}" class="inp" style="font-size:12px" placeholder="${t().boyQty}" value="${s.boyQty ?? ""}" />
-        <input type="number" data-slot-guest="${i}" class="inp" style="font-size:12px" placeholder="${t().guestQty}" value="${s.guestQty ?? ""}" />
-      </div>
+    <div class="rounded-lg overflow-hidden" style="border:1px solid #D8D2C2" data-sloti="${i}">
+      ${slots.length > 1 ? `
+      <div class="flex justify-end px-2 pt-1">
+        <button type="button" data-removeslot="${i}" style="color:#9B2C2C">${icons.trash}</button>
+      </div>` : ""}
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <th style="${thStyle}">${t().eventType}</th>
+          <th style="${thStyle}">${t().eventDate}</th>
+          <th style="${thStyle}">${t().eventTime}</th>
+        </tr>
+        <tr>
+          <td style="${cellStyle}">
+            <select data-slot-type="${i}" class="inp" style="font-size:12px;width:100%">
+              ${unitTypes.map(et => `<option value="${et.id}" ${s.typeId === et.id ? "selected" : ""}>${esc(et.name)}</option>`).join("") || `<option value="">—</option>`}
+            </select>
+          </td>
+          <td style="${cellStyle}"><input type="date" data-slot-date="${i}" class="inp" style="font-size:12px;width:100%" value="${s.date || todayISO()}" /></td>
+          <td style="${cellStyle}">
+            <select data-slot-time="${i}" class="inp" style="font-size:12px;width:100%">
+              <option value="day" ${s.time === "day" ? "selected" : ""}>${t().dayLabel}</option>
+              <option value="night" ${s.time !== "day" ? "selected" : ""}>${t().nightLabel}</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <th style="${thStyle}">${t().tableQty}</th>
+          <th style="${thStyle}">${t().boyQty}</th>
+          <th style="${thStyle}">${t().guestQty}</th>
+        </tr>
+        <tr>
+          <td style="${cellStyle}"><input type="number" data-slot-table="${i}" class="inp" style="font-size:12px;width:100%" value="${s.tableQty ?? ""}" /></td>
+          <td style="${cellStyle}"><input type="number" data-slot-boy="${i}" class="inp" style="font-size:12px;width:100%" value="${s.boyQty ?? ""}" /></td>
+          <td style="${cellStyle}"><input type="number" data-slot-guest="${i}" class="inp" style="font-size:12px;width:100%" value="${s.guestQty ?? ""}" /></td>
+        </tr>
+      </table>
     </div>`).join("");
+}
+function normalizeDayNight(time) {
+  if (time === "day" || time === "night") return time;
+  if (!time) return "night";
+  const hour = Number(String(time).split(":")[0]);
+  return (!isNaN(hour) && hour >= 6 && hour < 18) ? "day" : "night";
+}
+function dayNightLabel(time) {
+  if (time === "day") return t().dayLabel;
+  if (time === "night") return t().nightLabel;
+  return time || "";
 }
 
 function openBookEventModal(subUnitId, existing) {
@@ -1970,13 +2003,13 @@ function openBookEventModal(subUnitId, existing) {
   const unitPlaces = eventPlaces.filter(p => p.unitId === unitId);
   let slots = existing
     ? (Array.isArray(existing.eventTypeSlots) && existing.eventTypeSlots.length
-        ? existing.eventTypeSlots.map(s => ({ typeId: s.typeId, date: s.date, time: s.time, tableQty: s.tableQty, boyQty: s.boyQty, guestQty: s.guestQty }))
+        ? existing.eventTypeSlots.map(s => ({ typeId: s.typeId, date: s.date, time: normalizeDayNight(s.time), tableQty: s.tableQty, boyQty: s.boyQty, guestQty: s.guestQty }))
         : (existing.eventTypeIds || []).map((id, idx) => ({
-            typeId: id, date: existing.eventDate || todayISO(), time: existing.eventTime || "18:00",
+            typeId: id, date: existing.eventDate || todayISO(), time: normalizeDayNight(existing.eventTime),
             tableQty: idx === 0 ? (existing.tableQty ?? "") : "", boyQty: idx === 0 ? (existing.boyQty ?? "") : "", guestQty: "",
           })))
     : [];
-  if (!slots.length) slots = [{ typeId: unitTypes[0]?.id || "", date: todayISO(), time: "18:00", tableQty: "", boyQty: "", guestQty: "" }];
+  if (!slots.length) slots = [{ typeId: unitTypes[0]?.id || "", date: todayISO(), time: "night", tableQty: "", boyQty: "", guestQty: "" }];
   const earliestDate = () => slots.map(s => s.date).filter(Boolean).sort()[0] || todayISO();
   let currentPrefix = memoPrefixFor(subUnitId, existing?.eventDate || earliestDate());
   const serialPrefill = existing ? (existing.memoNo.startsWith(currentPrefix) ? existing.memoNo.slice(currentPrefix.length) : existing.memoNo) : "";
@@ -1997,6 +2030,10 @@ function openBookEventModal(subUnitId, existing) {
       <label class="flex flex-col gap-1 text-sm">
         <span class="font-medium" style="color:#6B6659">${t().address}</span>
         <input id="evAddress" class="inp" value="${esc(existing?.customerAddress || "")}" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        <span class="font-medium" style="color:#6B6659">${t().phone}</span>
+        <input id="evPhone" class="inp" value="${esc(existing?.customerPhone || "")}" />
       </label>
       <div class="grid grid-cols-2 gap-3">
         <label class="flex flex-col gap-1 text-sm">
@@ -2057,7 +2094,7 @@ function openBookEventModal(subUnitId, existing) {
     }
     bindSlotEvents();
     wrap.querySelector("#addSlotBtn").addEventListener("click", () => {
-      slots.push({ typeId: unitTypes[0]?.id || "", date: earliestDate(), time: "18:00", tableQty: "", boyQty: "", guestQty: "" });
+      slots.push({ typeId: unitTypes[0]?.id || "", date: earliestDate(), time: "night", tableQty: "", boyQty: "", guestQty: "" });
       renderSlots();
     });
     wrap.querySelector("#cancelBtn").addEventListener("click", () => wrap.remove());
@@ -2092,6 +2129,7 @@ function openBookEventModal(subUnitId, existing) {
       const sortedSlots = [...cleanSlots].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       const data = {
         memoNo: fullMemo, customerName: fields.evName.value.trim(), customerAddress: fields.evAddress.value.trim(),
+        customerPhone: wrap.querySelector("#evPhone").value.trim(),
         placeId: fields.evPlace.value, eventTypeIds: cleanSlots.map(s => s.typeId), eventTypeSlots: cleanSlots,
         bookingDate: fields.evBooking.value, eventDate: sortedSlots[0].date, eventTime: sortedSlots[0].time,
         totalRentAmount: Number(fields.evTotal.value) || 0,
@@ -2135,12 +2173,13 @@ function paintEventDetailBody(eventId) {
       <div class="col-span-2">
         <span style="color:#8a8578">${t().eventType}: </span>
         ${Array.isArray(e.eventTypeSlots) && e.eventTypeSlots.length
-          ? e.eventTypeSlots.map(s => `<div class="text-xs">${esc(eventTypes.find(et => et.id === s.typeId)?.name || s.typeId)} — ${esc(s.date || "")} ${esc(s.time || "")}${(s.tableQty || s.boyQty || s.guestQty) ? ` · ${t().tableQty} ${s.tableQty || 0}, ${t().boyQty} ${s.boyQty || 0}, ${t().guestQty} ${s.guestQty || 0}` : ""}</div>`).join("")
-          : `${esc(e.eventDate || "")} ${esc(e.eventTime || "")}`}
+          ? e.eventTypeSlots.map(s => `<div class="text-xs">${esc(eventTypes.find(et => et.id === s.typeId)?.name || s.typeId)} — ${esc(s.date || "")} ${s.time === "day" ? t().dayLabel : t().nightLabel}${(s.tableQty || s.boyQty || s.guestQty) ? ` · ${t().tableQty} ${s.tableQty || 0}, ${t().boyQty} ${s.boyQty || 0}, ${t().guestQty} ${s.guestQty || 0}` : ""}</div>`).join("")
+          : `${esc(e.eventDate || "")} ${esc(dayNightLabel(e.eventTime))}`}
       </div>
       <div><span style="color:#8a8578">${t().status}: </span><span class="badge ${e.status === "cancelled" ? "badge-gray" : "badge-green"}">${e.status === "cancelled" ? t().cancelledStatus : (balance <= 0 ? t().doneStatus : t().pendingStatus)}</span></div>
       <div class="col-span-2"><span style="color:#8a8578">${t().eventPlace}: </span>${esc(placeName(e.placeId))}</div>
       <div class="col-span-2"><span style="color:#8a8578">${t().address}: </span>${esc(e.customerAddress || "—")}</div>
+      ${e.customerPhone ? `<div class="col-span-2"><span style="color:#8a8578">${t().phone}: </span>${esc(e.customerPhone)}</div>` : ""}
       <div><span style="color:#8a8578">${t().totalRent}: </span>৳${Number(e.totalRentAmount || 0).toLocaleString()}</div>
       <div><span style="color:#8a8578">${t().collected}: </span><span class="txt-income">৳${paid.toLocaleString()}</span></div>
       ${eventOtherTotal(e.id) > 0 ? `<div class="col-span-2"><span style="color:#8a8578">${t().otherService}: </span>৳${eventOtherTotal(e.id).toLocaleString()}</div>` : ""}
@@ -2863,7 +2902,7 @@ function targetLabel(req) {
   return "—";
 }
 const FIELD_LABELS = {
-  name: "name", address: "address", phone: "phone", rentAmount: "rentAmount",
+  name: "name", address: "address", phone: "phone", customerPhone: "phone", rentAmount: "rentAmount",
   customerName: "customerName", customerAddress: "address", totalRentAmount: "totalRent",
   tableQty: "tableQty", boyQty: "boyQty", eventDate: "eventDate", eventTime: "eventTime",
   bookingDate: "bookingDate", memoNo: "memoNo", amount: "amountLabel", paidDate: "bookingDate",
